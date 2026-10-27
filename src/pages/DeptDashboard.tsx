@@ -66,24 +66,24 @@ export default function DeptDashboard() {
           {dept === 'sale' ? (() => {
             const a = aggSale(reps)
             return (
-              <div className="grid grid-cols-5 gap-4">
-                <Stat label="Doanh số chốt" value={fmtVND(a.revenue)} />
-                <Stat label="Tỷ lệ chốt" value={fmtPct(a.close_rate)} tone={tone('close_rate', a.close_rate)} />
-                <Stat label="Giá trị đơn TB" value={fmtVND(a.aov)} />
-                <Stat label="Đơn chốt / Data" value={`${fmtNum(a.orders_closed)} / ${fmtNum(a.data_received)}`} />
-                <Stat label="Đơn hủy" value={fmtNum(a.orders_cancelled)} />
+              <div className="grid grid-cols-2 gap-5 xl:grid-cols-3 2xl:grid-cols-5">
+                <Stat color="pink" icon="payments" label="Doanh số chốt" value={fmtVND(a.revenue)} />
+                <Stat color="cyan" icon="percent" label="Tỷ lệ chốt" value={fmtPct(a.close_rate)} tone={tone('close_rate', a.close_rate)} />
+                <Stat color="lgreen" icon="shopping_bag" label="Giá trị đơn TB" value={fmtVND(a.aov)} />
+                <Stat color="orange" icon="fact_check" label="Đơn chốt / Data" value={`${fmtNum(a.orders_closed)} / ${fmtNum(a.data_received)}`} />
+                <Stat color="grey" icon="remove_shopping_cart" label="Đơn hủy" value={fmtNum(a.orders_cancelled)} />
               </div>
             )
           })() : (() => {
             const a = aggShip(reps)
             const latestBacklog = staff.reduce((s, p) => s + (byUser[p.id] ? aggShip(byUser[p.id]).backlog : 0), 0)
             return (
-              <div className="grid grid-cols-5 gap-4">
-                <Stat label="Tỷ lệ giao thành công" value={fmtPct(a.delivery_rate)} tone={tone('delivery_rate', a.delivery_rate)} />
-                <Stat label="Tỷ lệ hoàn (team)" value={fmtPct(a.return_rate)} tone={tone('return_rate', a.return_rate)} />
-                <Stat label="Đơn đã xử lý" value={fmtNum(a.orders_processed)} />
-                <Stat label="Đơn cứu được" value={fmtNum(a.rescued)} />
-                <Stat label="Đơn tồn hiện tại" value={fmtNum(latestBacklog)} tone={tone('team_backlog', latestBacklog)} />
+              <div className="grid grid-cols-2 gap-5 xl:grid-cols-3 2xl:grid-cols-5">
+                <Stat color="teal" icon="local_shipping" label="Tỷ lệ giao thành công" value={fmtPct(a.delivery_rate)} tone={tone('delivery_rate', a.delivery_rate)} />
+                <Stat color="pink" icon="assignment_return" label="Tỷ lệ hoàn (team)" value={fmtPct(a.return_rate)} tone={tone('return_rate', a.return_rate)} />
+                <Stat color="cyan" icon="inventory_2" label="Đơn đã xử lý" value={fmtNum(a.orders_processed)} />
+                <Stat color="orange" icon="support" label="Đơn cứu được" value={fmtNum(a.rescued)} />
+                <Stat color="purple" icon="pending_actions" label="Đơn tồn hiện tại" value={fmtNum(latestBacklog)} tone={tone('team_backlog', latestBacklog)} />
               </div>
             )
           })()}

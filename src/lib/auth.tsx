@@ -3,7 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
 import type { Department, Profile, Settings } from './types'
 
-interface AuthCtx {
+export interface AuthCtx {
   session: Session | null
   profile: Profile | null
   settings: Settings | null
@@ -19,6 +19,7 @@ interface AuthCtx {
 }
 
 const Ctx = createContext<AuthCtx>(null as unknown as AuthCtx)
+export const AuthContext = Ctx
 export const useAuth = () => useContext(Ctx)
 
 export function AuthProvider({ children }: { children: ReactNode }) {

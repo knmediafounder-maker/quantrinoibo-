@@ -14,8 +14,8 @@ export function TrendChart({ data, bar, line, money }: { data: Record<string, nu
         <YAxis yAxisId="r" orientation="right" unit="%" tick={{ fontSize: 12, fill: '#64748b' }} tickLine={false} axisLine={false} width={44} />
         <Tooltip formatter={(v: number, name: string) => (name === line ? fmtNum(v) + '%' : money ? fmtVND(v) : fmtNum(v))} />
         <Legend wrapperStyle={{ fontSize: 12 }} />
-        <Bar yAxisId="l" dataKey={bar} fill="#3b82f6" radius={[3, 3, 0, 0]} maxBarSize={36} />
-        <Line yAxisId="r" dataKey={line} stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} />
+        <Bar yAxisId="l" dataKey={bar} fill="#00bcd4" radius={[3, 3, 0, 0]} maxBarSize={36} />
+        <Line yAxisId="r" dataKey={line} stroke="#e91e63" strokeWidth={2} dot={{ r: 3 }} />
       </ComposedChart>
     </ResponsiveContainer>
   )

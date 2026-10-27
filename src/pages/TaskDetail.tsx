@@ -170,7 +170,7 @@ export default function TaskDetail() {
             ) : (
               <div key={c.id} className={`flex ${c.user_id === me.id ? 'justify-end' : ''}`}>
                 <div className={`max-w-[80%] rounded-lg px-3 py-2 ${c.user_id === me.id ? 'bg-brand-600 text-white' : 'bg-slate-100'}`}>
-                  <div className={`text-xs ${c.user_id === me.id ? 'text-blue-100' : 'text-slate-500'}`}>
+                  <div className={`text-xs ${c.user_id === me.id ? 'text-white/80' : 'text-slate-500'}`}>
                     {personName(c.user_id)} · {fmtDateTime(c.created_at)}
                   </div>
                   <div className="whitespace-pre-wrap text-sm">{c.body}</div>

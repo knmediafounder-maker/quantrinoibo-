@@ -51,23 +51,23 @@ export default function MyPerformance() {
           {dept === 'sale' ? (() => {
             const a = aggSale(reps)
             return (
-              <div className="grid grid-cols-5 gap-4">
-                <Stat label="Doanh số chốt" value={fmtVND(a.revenue)} hint={`${a.days} ngày báo cáo`} />
-                <Stat label="Tỷ lệ chốt" value={fmtPct(a.close_rate)} tone={bad('close_rate', a.close_rate)} hint={th('close_rate') && `Ngưỡng ≥ ${th('close_rate')!.value}%`} />
-                <Stat label="Giá trị đơn TB" value={fmtVND(a.aov)} />
-                <Stat label="Đơn chốt / Data" value={`${fmtNum(a.orders_closed)} / ${fmtNum(a.data_received)}`} />
-                <Stat label="Đơn hủy" value={fmtNum(a.orders_cancelled)} />
+              <div className="grid grid-cols-2 gap-5 xl:grid-cols-3 2xl:grid-cols-5">
+                <Stat color="pink" icon="payments" label="Doanh số chốt" value={fmtVND(a.revenue)} hint={`${a.days} ngày báo cáo`} />
+                <Stat color="cyan" icon="percent" label="Tỷ lệ chốt" value={fmtPct(a.close_rate)} tone={bad('close_rate', a.close_rate)} hint={th('close_rate') && `Ngưỡng ≥ ${th('close_rate')!.value}%`} />
+                <Stat color="lgreen" icon="shopping_bag" label="Giá trị đơn TB" value={fmtVND(a.aov)} />
+                <Stat color="orange" icon="fact_check" label="Đơn chốt / Data" value={`${fmtNum(a.orders_closed)} / ${fmtNum(a.data_received)}`} />
+                <Stat color="grey" icon="remove_shopping_cart" label="Đơn hủy" value={fmtNum(a.orders_cancelled)} />
               </div>
             )
           })() : (() => {
             const a = aggShip(reps)
             return (
-              <div className="grid grid-cols-5 gap-4">
-                <Stat label="Tỷ lệ giao thành công" value={fmtPct(a.delivery_rate)} tone={bad('delivery_rate', a.delivery_rate)} hint={th('delivery_rate') && `Ngưỡng ≥ ${th('delivery_rate')!.value}%`} />
-                <Stat label="Đơn đã xử lý" value={fmtNum(a.orders_processed)} hint={`${a.days} ngày báo cáo`} />
-                <Stat label="Giao thành công" value={fmtNum(a.delivered)} />
-                <Stat label="Đơn cứu được" value={fmtNum(a.rescued)} />
-                <Stat label="Đơn tồn (mới nhất)" value={fmtNum(a.backlog)} tone={bad('backlog', a.backlog)} />
+              <div className="grid grid-cols-2 gap-5 xl:grid-cols-3 2xl:grid-cols-5">
+                <Stat color="teal" icon="local_shipping" label="Tỷ lệ giao thành công" value={fmtPct(a.delivery_rate)} tone={bad('delivery_rate', a.delivery_rate)} hint={th('delivery_rate') && `Ngưỡng ≥ ${th('delivery_rate')!.value}%`} />
+                <Stat color="cyan" icon="inventory_2" label="Đơn đã xử lý" value={fmtNum(a.orders_processed)} hint={`${a.days} ngày báo cáo`} />
+                <Stat color="lgreen" icon="task_alt" label="Giao thành công" value={fmtNum(a.delivered)} />
+                <Stat color="orange" icon="support" label="Đơn cứu được" value={fmtNum(a.rescued)} />
+                <Stat color="purple" icon="pending_actions" label="Đơn tồn (mới nhất)" value={fmtNum(a.backlog)} tone={bad('backlog', a.backlog)} />
               </div>
             )
           })()}

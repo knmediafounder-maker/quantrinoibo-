@@ -19,12 +19,13 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4">
-      <form onSubmit={submit} className="card w-full max-w-sm space-y-4 p-6">
-        <div>
-          <h1 className="text-xl font-semibold">Đăng nhập</h1>
-          <p className="text-sm text-slate-500">Hệ thống quản trị nội bộ</p>
-        </div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-md-red p-4">
+      <div className="mb-6 text-center text-white">
+        <div className="text-3xl font-light uppercase tracking-wide">Quản trị <b className="font-medium">nội bộ</b></div>
+        <div className="mt-1 text-sm opacity-90">Giao việc · Báo cáo · Thống kê hiệu quả</div>
+      </div>
+      <form onSubmit={submit} className="card w-full max-w-sm space-y-5 p-7">
+        <div className="text-center text-sm text-slate-500">Đăng nhập để bắt đầu phiên làm việc</div>
         <Field label="Email">
           <input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
