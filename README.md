@@ -11,7 +11,7 @@ Hệ thống **không lưu thông tin khách hàng**.
 | `src/pages` | Các màn hình: Trang chủ, Việc, Nộp báo cáo, Danh sách báo cáo, Hiệu quả của tôi, Dashboard phòng, Thông báo, Quản trị |
 | `supabase/migrations` | Bảng dữ liệu, phân quyền (RLS), nghiệp vụ, nhắc nhở tự động (pg_cron mỗi 5 phút), dữ liệu ban đầu |
 | `supabase/functions/admin-users` | Edge Function cho admin tạo / khóa tài khoản, đặt lại mật khẩu |
-| `.github/workflows/deploy.yml` | Tự build và đưa lên GitHub Pages mỗi khi push nhánh `main` |
+| `scripts/deploy.sh` | Build và đẩy bản web lên nhánh `gh-pages` (GitHub Pages) |
 
 ## Cài đặt lần đầu
 
@@ -43,19 +43,15 @@ npm run dev
 ```
 
 ### 3. Đưa lên GitHub Pages
-1. Tạo repo mới trên GitHub (có thể để Private nếu tài khoản có GitHub Pro; repo Public vẫn an toàn vì mọi dữ liệu nằm sau đăng nhập + RLS).
-2. Đẩy code:
-   ```bash
-   git remote add origin https://github.com/<tài-khoản>/<tên-repo>.git
-   git push -u origin main
-   ```
-3. Repo → **Settings → Secrets and variables → Actions → New repository secret**, thêm:
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-4. Repo → **Settings → Pages → Source: GitHub Actions**.
-5. Vào tab **Actions**, chạy lại workflow *Deploy to GitHub Pages* (hoặc push commit mới).
-   Web sẽ có ở `https://<tài-khoản>.github.io/<tên-repo>/`.
-6. Supabase → **Authentication → URL Configuration → Site URL**: điền địa chỉ trên.
+Web được build trên máy rồi đẩy thư mục `dist` lên nhánh `gh-pages`:
+```bash
+npm run deploy
+```
+(Cần file `.env.local` có URL và anon key của Supabase.)
+
+Lần đầu: repo → **Settings → Pages → Build and deployment → Source: Deploy from a branch**, chọn nhánh `gh-pages`, thư mục `/ (root)`, bấm **Save**.
+Web sẽ có ở `https://<tài-khoản>.github.io/<tên-repo>/`.
+Sau đó vào Supabase → **Authentication → URL Configuration → Site URL**: điền địa chỉ trên.
 
 ### 4. Gắn tên miền riêng (khi đã mua)
 1. Ở nơi mua tên miền, thêm bản ghi DNS: `CNAME`  `quanly` → `<tài-khoản>.github.io`
