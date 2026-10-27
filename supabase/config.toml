@@ -1,0 +1,5 @@
+# Cấu hình tối thiểu cho Supabase CLI (npx supabase link / db push / functions deploy)
+project_id = "kn-quan-tri-noi-bo"
+
+[functions.admin-users]
+verify_jwt = true
