@@ -7,7 +7,8 @@ import type { DailyReport, Template } from '../lib/types'
 import { Card, ErrorText, PageHeader, Spinner, must, useLoad } from '../components/ui'
 
 export default function SubmitReport() {
-  const { profile, settings, deptName } = useAuth()
+  const { profile, deptName, deptSetting } = useAuth()
+  const settings = deptSetting(profile?.department)
   const me = profile!
   const [params, setParams] = useSearchParams()
   const date = params.get('ngay') || todayVN()
@@ -43,21 +44,21 @@ export default function SubmitReport() {
     else { setSaved('Đã lưu báo cáo lúc ' + new Date().toLocaleTimeString('vi-VN')); reload(); window.dispatchEvent(new Event('notif-changed')) }
   }
 
-  const late = rep && settings && rep.submitted_at && new Date(rep.submitted_at).toLocaleTimeString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }) > settings.report_deadline
+  const late = rep && rep.submitted_at && new Date(rep.submitted_at).toLocaleTimeString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }) > settings.report_deadline
 
   return (
     <div className="max-w-3xl">
       <PageHeader
         title="Nộp báo cáo cuối ngày"
-        subtitle={<>Phòng {deptName(me.department)} · Hạn nộp {settings?.report_deadline.slice(0, 5)} · Sửa được đến {settings?.report_lock_time.slice(0, 5)}</>}
+        subtitle={<>Phòng {deptName(me.department)} · Hạn nộp {settings.report_deadline.slice(0, 5)} · Sửa được đến {settings.report_lock_time.slice(0, 5)}</>}
         actions={<input type="date" className="input w-44" value={date} max={todayVN()} onChange={(e) => setParams({ ngay: e.target.value })} />}
       />
       <Card title={`Báo cáo ngày ${fmtDate(date)}`} actions={
-        rep ? <span className={`text-xs ${late ? 'text-amber-700' : 'text-green-700'}`}>Đã nộp {fmtDateTime(rep.submitted_at)}{late ? ' (muộn)' : ''}</span>
-            : <span className="text-xs text-red-600">Chưa nộp</span>
+        rep ? <span className={`text-xs ${late ? 'text-clay-dark' : 'text-sage-dark'}`}>Đã nộp {fmtDateTime(rep.submitted_at)}{late ? ' (muộn)' : ''}</span>
+            : <span className="text-xs text-rose-dark">Chưa nộp</span>
       }>
         {!editable && (
-          <div className="mb-4 rounded-md bg-slate-100 px-3 py-2 text-sm text-slate-600">
+          <div className="mb-4 rounded-lg bg-sand/60 px-3 py-2 text-sm text-ink-soft">
             🔒 Báo cáo ngày này đã khóa. Liên hệ admin nếu cần mở lại.
           </div>
         )}
@@ -69,7 +70,7 @@ export default function SubmitReport() {
                 <input className="input" inputMode="numeric" disabled={!editable} required={f.required}
                   pattern="\d+" title="Nhập số nguyên không âm"
                   value={values[f.key] ?? ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value.replace(/\D/g, '') })} />
-                {f.type === 'money' && values[f.key] && <span className="mt-1 block text-xs text-slate-500">{fmtVND(Number(values[f.key]))}</span>}
+                {f.type === 'money' && values[f.key] && <span className="mt-1 block text-xs text-muted">{fmtVND(Number(values[f.key]))}</span>}
               </label>
             ))}
           </div>
@@ -80,9 +81,9 @@ export default function SubmitReport() {
                 value={values[f.key] ?? ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
             </label>
           ))}
-          <p className="text-xs text-slate-500">Lưu ý: không nhập thông tin khách hàng (tên, số điện thoại, địa chỉ, tin nhắn).</p>
+          <p className="text-xs text-muted">Lưu ý: không nhập thông tin khách hàng (tên, số điện thoại, địa chỉ, tin nhắn).</p>
           <ErrorText error={error} />
-          {saved && <div className="rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">{saved}</div>}
+          {saved && <div className="rounded-lg bg-sage-light px-3 py-2 text-sm text-sage-dark">{saved}</div>}
           {editable && <button className="btn-primary" disabled={busy}>{busy ? 'Đang lưu…' : rep ? 'Cập nhật báo cáo' : 'Nộp báo cáo'}</button>}
         </form>
       </Card>

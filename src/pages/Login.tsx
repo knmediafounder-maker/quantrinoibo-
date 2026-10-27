@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { supabase, errMsg } from '../lib/supabase'
-import { ErrorText, Field } from '../components/ui'
+import { ErrorText, Field, Icon } from '../components/ui'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -19,13 +19,19 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-md-red p-4">
-      <div className="mb-6 text-center text-white">
-        <div className="text-3xl font-light uppercase tracking-wide">Quản trị <b className="font-medium">nội bộ</b></div>
-        <div className="mt-1 text-sm opacity-90">Giao việc · Báo cáo · Thống kê hiệu quả</div>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-cream p-4">
+      <div className="mb-8 text-center">
+        <div className="flex items-center justify-center gap-2.5">
+          <Icon name="spa" className="text-4xl text-clay" />
+          <span className="font-serif text-4xl font-medium text-ink">quản trị nội bộ</span>
+        </div>
+        <div className="mt-2 text-sm text-muted">Công cụ quản lý việc, báo cáo và hiệu quả cho cả công ty</div>
       </div>
-      <form onSubmit={submit} className="card w-full max-w-sm space-y-5 p-7">
-        <div className="text-center text-sm text-slate-500">Đăng nhập để bắt đầu phiên làm việc</div>
+      <form onSubmit={submit} className="w-full max-w-sm space-y-5 rounded-2xl border border-line bg-paper p-7 shadow-soft">
+        <div>
+          <h1 className="font-serif text-xl font-medium">Đăng nhập</h1>
+          <p className="mt-0.5 text-sm text-muted">Chào mừng bạn quay lại 👋</p>
+        </div>
         <Field label="Email">
           <input className="input" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
@@ -34,7 +40,7 @@ export default function Login() {
         </Field>
         <ErrorText error={error} />
         <button className="btn-primary w-full" disabled={busy}>{busy ? 'Đang đăng nhập…' : 'Đăng nhập'}</button>
-        <p className="text-xs text-slate-500">Chưa có tài khoản? Liên hệ admin để được cấp.</p>
+        <p className="text-xs text-muted">Chưa có tài khoản? Liên hệ admin để được cấp.</p>
       </form>
     </div>
   )

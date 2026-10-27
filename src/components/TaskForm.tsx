@@ -122,17 +122,17 @@ export default function TaskForm({ task, onDone }: { task?: Task; onDone: (id: s
               {departments.filter((d) => me.role === 'admin' || d.code === me.department).map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}
             </select>
           ) : (
-            <div className="max-h-56 overflow-y-auto rounded-md border border-slate-200 p-2">
+            <div className="max-h-56 overflow-y-auto rounded-md border border-line p-2">
               {Object.entries(grouped).map(([d, ps]) => (
                 <div key={d} className="mb-2">
-                  <div className="mb-1 flex items-center justify-between text-xs font-medium uppercase text-slate-500">
+                  <div className="mb-1 flex items-center justify-between text-xs font-medium uppercase text-muted">
                     {d === '_' ? 'Không thuộc phòng' : deptName(d)}
-                    <button type="button" className="text-brand-600 normal-case"
+                    <button type="button" className="text-clay-dark normal-case"
                       onClick={() => setSelected((s) => [...new Set([...s, ...ps.map((p) => p.id)])])}>Chọn tất cả</button>
                   </div>
                   <div className="grid grid-cols-2 gap-1">
                     {ps.map((p) => (
-                      <label key={p.id} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-slate-50">
+                      <label key={p.id} className="flex items-center gap-2 rounded px-1 py-0.5 text-sm hover:bg-cream">
                         <input type="checkbox" checked={selected.includes(p.id)} onChange={() => toggle(p.id)} />
                         {p.full_name}{p.id === me.id && ' (tôi)'}
                       </label>

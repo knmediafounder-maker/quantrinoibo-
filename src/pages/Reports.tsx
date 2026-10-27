@@ -3,19 +3,19 @@ import { useSearchParams } from 'react-router-dom'
 import dayjs from 'dayjs'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg } from '../lib/supabase'
-import { fmtDate, fmtDateTime, fmtNum, fmtPct, fmtVND, todayVN, vn } from '../lib/format'
-import { aggSale, aggShip } from '../lib/metrics'
+import { fmtDate, fmtDateTime, fmtNum, fmtVND, todayVN, vn } from '../lib/format'
+import { fmtKpi, kpiOf } from '../lib/metrics'
 import type { DailyReport, Template } from '../lib/types'
 import { Badge, Card, Empty, ErrorText, Modal, PageHeader, Spinner, must, useLoad } from '../components/ui'
 import ReportDetail from '../components/ReportDetail'
 
 function rateOf(r: DailyReport) {
-  if (r.department === 'sale') return fmtPct(aggSale([r]).close_rate)
-  return fmtPct(aggShip([r]).delivery_rate)
+  const dk = kpiOf(r.department)
+  return fmtKpi(dk.rate, dk.agg([r])[dk.rate.key])
 }
 
 export default function Reports() {
-  const { profile, settings, people, viewDepts, deptName, personName } = useAuth()
+  const { profile, people, viewDepts, deptName, personName, deptSetting } = useAuth()
   const me = profile!
   const isManager = me.role !== 'staff'
   const [params, setParams] = useSearchParams()
@@ -49,8 +49,8 @@ export default function Reports() {
   const staff = useMemo(() => people.filter((p) => p.is_active && p.role === 'staff' && p.department === dept), [people, dept])
   const byUser = useMemo(() => Object.fromEntries((day.data ?? []).map((r) => [r.user_id, r])), [day.data])
   const missing = staff.filter((p) => !byUser[p.id])
-  const deadline = settings?.report_deadline ?? '18:00:00'
-  const isLate = (r: DailyReport) => vn(r.submitted_at).format('YYYY-MM-DD') > r.report_date || vn(r.submitted_at).format('HH:mm:ss') > deadline
+  const isLate = (r: DailyReport) =>
+    vn(r.submitted_at).format('YYYY-MM-DD') > r.report_date || vn(r.submitted_at).format('HH:mm:ss') > deptSetting(r.department).report_deadline
 
   async function reopen(uid: string) {
     const h = prompt('Mở lại báo cáo cho nhân viên sửa trong bao nhiêu giờ?', '24')
@@ -84,16 +84,16 @@ export default function Reports() {
         <div className="card overflow-x-auto">
           {mine.loading ? <Spinner /> : (mine.data ?? []).length === 0 ? <Empty>Chưa có báo cáo</Empty> : (
             <table className="table">
-              <thead><tr><th>Ngày</th>{tpl?.fields.filter((f) => f.type !== 'text').map((f) => <th key={f.key}>{f.label}</th>)}<th>Tỷ lệ</th><th>Nộp lúc</th></tr></thead>
+              <thead><tr><th>Ngày</th>{tpl?.fields.filter((f) => f.type !== 'text').map((f) => <th key={f.key}>{f.label}</th>)}<th>{kpiOf(me.department).rate.label}</th><th>Nộp lúc</th></tr></thead>
               <tbody>
                 {mine.data!.map((r) => (
-                  <tr key={r.id} className="cursor-pointer hover:bg-slate-50" onClick={() => setOpen(r)}>
+                  <tr key={r.id} className="cursor-pointer hover:bg-cream" onClick={() => setOpen(r)}>
                     <td className="font-medium">{fmtDate(r.report_date)}</td>
                     {tpl?.fields.filter((f) => f.type !== 'text').map((f) => (
                       <td key={f.key}>{f.type === 'money' ? fmtVND(Number(r.data[f.key])) : fmtNum(Number(r.data[f.key]))}</td>
                     ))}
                     <td>{rateOf(r)}</td>
-                    <td>{fmtDateTime(r.submitted_at)} {isLate(r) && <Badge className="bg-amber-100 text-amber-800">Muộn</Badge>}</td>
+                    <td>{fmtDateTime(r.submitted_at)} {isLate(r) && <Badge className="bg-honey-light text-honey-dark">Muộn</Badge>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -124,7 +124,7 @@ export default function Reports() {
       />
       <ErrorText error={err || day.error} />
       {missing.length > 0 && (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">
+        <div className="mb-4 rounded-xl2 border border-rose/30 bg-rose-light px-4 py-3 text-sm text-rose-dark">
           <b>Chưa nộp ({missing.length}):</b> {missing.map((p) => p.full_name).join(', ')}
         </div>
       )}
@@ -132,19 +132,19 @@ export default function Reports() {
         {day.loading ? <Spinner /> : (
           <div className="overflow-x-auto">
             <table className="table">
-              <thead><tr><th>Nhân viên</th>{numFields.map((f) => <th key={f.key}>{f.label}</th>)}<th>{dept === 'sale' ? 'Tỷ lệ chốt' : 'Tỷ lệ giao'}</th><th>Nộp lúc</th><th>Nhận xét</th><th /></tr></thead>
+              <thead><tr><th>Nhân viên</th>{numFields.map((f) => <th key={f.key}>{f.label}</th>)}<th>{kpiOf(dept).rate.label}</th><th>Nộp lúc</th><th>Nhận xét</th><th /></tr></thead>
               <tbody>
                 {staff.map((p) => {
                   const r = byUser[p.id]
                   return (
-                    <tr key={p.id} className={r ? 'cursor-pointer hover:bg-slate-50' : 'bg-red-50/40'} onClick={() => r && setOpen(r)}>
+                    <tr key={p.id} className={r ? 'cursor-pointer hover:bg-cream' : 'bg-rose-light/40'} onClick={() => r && setOpen(r)}>
                       <td className="font-medium">{p.full_name}</td>
                       {numFields.map((f) => (
                         <td key={f.key}>{r ? (f.type === 'money' ? fmtVND(Number(r.data[f.key])) : fmtNum(Number(r.data[f.key]))) : ''}</td>
                       ))}
                       <td>{r ? rateOf(r) : ''}</td>
-                      <td>{r ? <>{vn(r.submitted_at).format('HH:mm')} {isLate(r) && <Badge className="bg-amber-100 text-amber-800">Muộn</Badge>}</> : <Badge className="bg-red-100 text-red-700">Chưa nộp</Badge>}</td>
-                      <td>{r && (commentCounts.data?.[r.id] ? `💬 ${commentCounts.data[r.id]}` : <span className="text-xs text-slate-400">Chưa nhận xét</span>)}</td>
+                      <td>{r ? <>{vn(r.submitted_at).format('HH:mm')} {isLate(r) && <Badge className="bg-honey-light text-honey-dark">Muộn</Badge>}</> : <Badge className="bg-rose-light text-rose-dark">Chưa nộp</Badge>}</td>
+                      <td>{r && (commentCounts.data?.[r.id] ? `💬 ${commentCounts.data[r.id]}` : <span className="text-xs text-muted">Chưa nhận xét</span>)}</td>
                       <td onClick={(e) => e.stopPropagation()}>
                         {me.role === 'admin' && <button className="btn-ghost px-2 py-1 text-xs" onClick={() => reopen(p.id)}>Mở lại</button>}
                       </td>

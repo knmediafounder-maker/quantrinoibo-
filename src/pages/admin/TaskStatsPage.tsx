@@ -65,7 +65,7 @@ export default function TaskStatsPage() {
                 <td className="font-medium">{x.l.full_name}</td>
                 <td>{deptName(x.l.department)}</td>
                 <td>{x.given}</td>
-                <td>{fmtPct(x.repRate)} <span className="text-xs text-slate-400">/ {x.repCount} BC</span></td>
+                <td>{fmtPct(x.repRate)} <span className="text-xs text-muted">/ {x.repCount} BC</span></td>
                 <td>{x.discuss}</td>
                 <td>{x.answered}</td>
                 <td>{x.avgMin == null ? '—' : x.avgMin < 60 ? `${fmtNum(x.avgMin)} phút` : `${fmtNum(x.avgMin / 60)} giờ`}</td>
@@ -85,9 +85,9 @@ export default function TaskStatsPage() {
                 <td>{s?.total ?? 0}</td>
                 <td>{s?.done ?? 0}</td>
                 <td>{s?.onTime ?? 0}</td>
-                <td className={s?.overdue ? 'text-red-600' : ''}>{s?.overdue ?? 0}</td>
+                <td className={s?.overdue ? 'text-rose-dark' : ''}>{s?.overdue ?? 0}</td>
                 <td>{fmtPct(s?.onTimeRate)}</td>
-                <td className={s?.unack ? 'text-amber-700' : ''}>{s?.unack ?? 0}</td>
+                <td className={s?.unack ? 'text-honey-dark' : ''}>{s?.unack ?? 0}</td>
               </tr>
             ))}
           </tbody>

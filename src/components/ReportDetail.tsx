@@ -25,14 +25,14 @@ export default function ReportDetail({ report, template }: { report: DailyReport
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-slate-500">
+      <div className="text-sm text-muted">
         {personName(report.user_id)} · Ngày {fmtDate(report.report_date)} · Nộp {fmtDateTime(report.submitted_at)}
         {report.updated_at !== report.submitted_at && <> · Sửa {fmtDateTime(report.updated_at)}</>}
       </div>
       <dl className="grid grid-cols-2 gap-3">
         {(template?.fields ?? []).map((f) => (
           <div key={f.key} className={f.type === 'text' ? 'col-span-2' : ''}>
-            <dt className="text-xs text-slate-500">{f.label}</dt>
+            <dt className="text-xs text-muted">{f.label}</dt>
             <dd className="whitespace-pre-wrap font-medium">
               {f.type === 'money' ? fmtVND(Number(report.data[f.key])) : f.type === 'int' ? fmtNum(Number(report.data[f.key])) : report.data[f.key] || '—'}
             </dd>
@@ -41,11 +41,11 @@ export default function ReportDetail({ report, template }: { report: DailyReport
       </dl>
       <div>
         <div className="mb-2 font-medium">Nhận xét</div>
-        {(comments.data ?? []).length === 0 && <div className="text-sm text-slate-500">Chưa có nhận xét</div>}
+        {(comments.data ?? []).length === 0 && <div className="text-sm text-muted">Chưa có nhận xét</div>}
         <ul className="space-y-2">
           {comments.data?.map((c) => (
-            <li key={c.id} className="rounded-md bg-slate-50 px-3 py-2 text-sm">
-              <div className="text-xs text-slate-500">{personName(c.user_id)} · {fmtDateTime(c.created_at)}</div>
+            <li key={c.id} className="rounded-md bg-cream px-3 py-2 text-sm">
+              <div className="text-xs text-muted">{personName(c.user_id)} · {fmtDateTime(c.created_at)}</div>
               <div className="whitespace-pre-wrap">{c.body}</div>
             </li>
           ))}

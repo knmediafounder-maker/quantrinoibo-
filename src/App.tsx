@@ -24,7 +24,7 @@ function NotConfigured() {
   return (
     <div className="mx-auto mt-24 max-w-xl card p-6">
       <h1 className="text-xl font-semibold">Chưa cấu hình Supabase</h1>
-      <p className="mt-2 text-sm text-slate-600">
+      <p className="mt-2 text-sm text-muted">
         Tạo file <code>.env.local</code> (khi chạy trên máy) hoặc thêm GitHub Secrets <code>VITE_SUPABASE_URL</code> và{' '}
         <code>VITE_SUPABASE_ANON_KEY</code> (khi deploy). Xem README.md.
       </p>

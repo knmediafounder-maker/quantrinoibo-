@@ -21,11 +21,11 @@ const TABS = [
 export default function Admin() {
   return (
     <div>
-      <PageHeader title="Quản trị" />
-      <div className="mb-5 flex flex-wrap gap-1 border-b border-slate-200">
+      <PageHeader title="Cài đặt & quản trị" subtitle="Tài khoản, phân quyền, mẫu báo cáo, ngưỡng nhắc nhở và cài đặt theo từng phòng ban" />
+      <div className="mb-6 flex flex-wrap gap-1 rounded-full bg-sand/70 p-1 sm:inline-flex">
         {TABS.map(([path, label]) => (
           <NavLink key={path} to={path}
-            className={({ isActive }) => `-mb-px border-b-2 px-3 py-2 text-sm ${isActive ? 'border-brand-600 font-medium text-brand-700' : 'border-transparent text-slate-600 hover:text-slate-900'}`}>
+            className={({ isActive }) => `rounded-full px-3.5 py-1.5 text-xs font-medium transition ${isActive ? 'bg-white text-ink shadow-soft' : 'text-muted hover:text-ink'}`}>
             {label}
           </NavLink>
         ))}

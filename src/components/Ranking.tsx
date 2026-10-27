@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase'
 import { fmtPct, fmtVND } from '../lib/format'
-import { Empty, must, useLoad } from './ui'
+import { Avatar, Empty, must, useLoad } from './ui'
 
 interface Row { rank: number; user_id: string; full_name: string; is_me: boolean; score: number | null; days: number }
 
@@ -11,15 +11,16 @@ export default function Ranking({ from, to, dept }: { from: string; to: string; 
   )
   if (loading) return null
   if (!data?.length) return <Empty>Không có bảng xếp hạng</Empty>
-  // Sale xếp theo doanh số, Vận đơn theo tỷ lệ giao thành công; số của người khác bị ẩn với nhân viên
-  const fmt = (v: number | null) => (v == null ? '•••' : dept === 'sale' ? fmtVND(v) : fmtPct(v))
+  // Vận đơn xếp theo tỷ lệ giao thành công, các phòng khác theo doanh số; số của người khác bị ẩn với nhân viên
+  const fmt = (v: number | null) => (v == null ? '•••' : dept === 'van_don' ? fmtPct(v) : fmtVND(v))
   return (
     <ol className="space-y-1">
       {data.map((r) => (
-        <li key={r.user_id} className={`flex items-center gap-3 rounded-md px-2 py-1.5 text-sm ${r.is_me ? 'bg-brand-50 font-semibold text-brand-700' : ''}`}>
-          <span className={`w-7 text-center ${r.rank <= 3 ? 'text-lg' : 'text-slate-500'}`}>{r.rank === 1 ? '🥇' : r.rank === 2 ? '🥈' : r.rank === 3 ? '🥉' : r.rank}</span>
-          <span className="flex-1">{r.full_name}{r.is_me && ' (bạn)'}</span>
-          <span className="text-slate-600">{fmt(r.score)}</span>
+        <li key={r.user_id} className={`flex items-center gap-3 rounded-lg px-2 py-1.5 text-sm ${r.is_me ? 'bg-sage-light font-medium' : ''}`}>
+          <span className={`w-6 text-center text-xs ${r.rank <= 3 ? 'font-semibold text-clay-dark' : 'text-muted'}`}>{r.rank}</span>
+          <Avatar name={r.full_name} size="sm" />
+          <span className="flex-1 truncate">{r.full_name}{r.is_me && ' (bạn)'}</span>
+          <span className="text-ink-soft">{fmt(r.score)}</span>
         </li>
       ))}
     </ol>

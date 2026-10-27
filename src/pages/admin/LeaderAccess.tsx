@@ -16,7 +16,7 @@ export default function LeaderAccess() {
 
   return (
     <Card title="Quyền xem thêm phòng khác của leader">
-      <p className="mb-3 text-sm text-slate-500">Leader luôn xem được phòng của mình. Tick để cho leader xem thêm số liệu và báo cáo của phòng khác (chỉ xem, không giao việc).</p>
+      <p className="mb-3 text-sm text-muted">Leader luôn xem được phòng của mình. Tick để cho leader xem thêm số liệu và báo cáo của phòng khác (chỉ xem, không giao việc).</p>
       <ErrorText error={error} />
       {leaders.length === 0 ? <Empty>Chưa có leader nào</Empty> : (
         <table className="table">

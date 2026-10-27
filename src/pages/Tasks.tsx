@@ -90,22 +90,22 @@ export default function Tasks() {
                 {tasks.map((t) => {
                   const ack = myAck(t)
                   return (
-                    <tr key={t.id} className="cursor-pointer hover:bg-slate-50" onClick={() => nav(`/viec/${t.id}`)}>
+                    <tr key={t.id} className="cursor-pointer hover:bg-cream" onClick={() => nav(`/viec/${t.id}`)}>
                       <td>
-                        <Link to={`/viec/${t.id}`} className="font-medium text-slate-900 hover:text-brand-600">{t.title}</Link>
-                        {ack === 'pending' && <Badge className={`ml-2 ${ACK_COLOR.pending} ring-1 ring-red-300`}>Cần xác nhận</Badge>}
-                        {t.recurrence && <span className="ml-1 text-xs text-slate-400" title="Việc lặp lại">🔁</span>}
+                        <Link to={`/viec/${t.id}`} className="font-medium text-ink hover:text-clay-dark">{t.title}</Link>
+                        {ack === 'pending' && <Badge className={`ml-2 ${ACK_COLOR.pending} ring-1 ring-rose/40`}>Cần xác nhận</Badge>}
+                        {t.recurrence && <span className="ml-1 text-xs text-muted" title="Việc lặp lại">🔁</span>}
                       </td>
                       <td className="max-w-56">
                         <div className="flex flex-wrap gap-1">
                           {t.task_assignees?.slice(0, 4).map((a) => (
                             <Badge key={a.user_id} className={ACK_COLOR[a.ack]}>{personName(a.user_id)}</Badge>
                           ))}
-                          {(t.task_assignees?.length ?? 0) > 4 && <Badge className="bg-slate-100">+{t.task_assignees!.length - 4}</Badge>}
+                          {(t.task_assignees?.length ?? 0) > 4 && <Badge className="bg-sand/60">+{t.task_assignees!.length - 4}</Badge>}
                         </div>
                       </td>
                       <td>{personName(t.created_by)}</td>
-                      <td className={t.status === 'overdue' ? 'text-red-600' : ''}>{fmtDateTime(t.due_at)}</td>
+                      <td className={t.status === 'overdue' ? 'text-rose-dark' : ''}>{fmtDateTime(t.due_at)}</td>
                       <td><Badge className={PRIORITY_COLOR[t.priority]}>{PRIORITY_LABEL[t.priority]}</Badge></td>
                       <td><Badge className={STATUS_COLOR[t.status]}>{STATUS_LABEL[t.status]}</Badge></td>
                     </tr>
@@ -120,27 +120,27 @@ export default function Tasks() {
           {COLUMNS.map((col) => {
             const items = tasks.filter((t) => t.status === col)
             return (
-              <div key={col} className="min-h-96 rounded-lg bg-slate-100 p-2"
+              <div key={col} className="min-h-96 rounded-lg bg-sand/60 p-2"
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => { const id = e.dataTransfer.getData('text/plain'); if (id) drop(id, col) }}>
                 <div className="mb-2 flex items-center justify-between px-1">
                   <Badge className={STATUS_COLOR[col]}>{STATUS_LABEL[col]}</Badge>
-                  <span className="text-xs text-slate-500">{items.length}</span>
+                  <span className="text-xs text-muted">{items.length}</span>
                 </div>
                 <div className="space-y-2">
                   {items.map((t) => (
                     <Link key={t.id} to={`/viec/${t.id}`} draggable
                       onDragStart={(e) => e.dataTransfer.setData('text/plain', t.id)}
-                      className="block rounded-md border border-slate-200 bg-white p-2 text-sm shadow-sm hover:border-brand-500">
+                      className="block rounded-md border border-line bg-white p-2 text-sm shadow-sm hover:border-sand-dark">
                       <div className="font-medium">{t.title}</div>
                       <div className="mt-1 flex flex-wrap items-center gap-1">
                         <Badge className={PRIORITY_COLOR[t.priority]}>{PRIORITY_LABEL[t.priority]}</Badge>
-                        {myAck(t) === 'pending' && <Badge className="bg-red-50 text-red-700">Cần xác nhận</Badge>}
+                        {myAck(t) === 'pending' && <Badge className="bg-rose-light text-rose-dark">Cần xác nhận</Badge>}
                       </div>
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 text-xs text-muted">
                         {t.task_assignees?.map((a) => personName(a.user_id)).join(', ')}
                       </div>
-                      {t.due_at && <div className={`mt-1 text-xs ${t.status === 'overdue' ? 'text-red-600' : 'text-slate-500'}`}>⏰ {vn(t.due_at).format('HH:mm DD/MM')}</div>}
+                      {t.due_at && <div className={`mt-1 text-xs ${t.status === 'overdue' ? 'text-rose-dark' : 'text-muted'}`}>⏰ {vn(t.due_at).format('HH:mm DD/MM')}</div>}
                     </Link>
                   ))}
                 </div>

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from './supabase'
-import type { Department, Profile, Settings } from './types'
+import type { Department, DeptSettings, Profile, Settings } from './types'
 
 export interface AuthCtx {
   session: Session | null
@@ -15,6 +15,8 @@ export interface AuthCtx {
   reload: () => Promise<void>
   signOut: () => Promise<void>
   deptName: (code: string | null | undefined) => string
+  /** Cài đặt của một phòng (dự phòng bằng cài đặt chung) */
+  deptSetting: (code: string | null | undefined) => DeptSettings
   personName: (id: string | null | undefined) => string
 }
 
@@ -29,6 +31,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [departments, setDepartments] = useState<Department[]>([])
   const [people, setPeople] = useState<Profile[]>([])
   const [viewDepts, setViewDepts] = useState<string[]>([])
+  const [deptSettings, setDeptSettings] = useState<DeptSettings[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = useCallback(async (s: Session | null) => {
@@ -38,13 +41,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
     const uid = s.user.id
-    const [p, st, d, ppl, lda] = await Promise.all([
+    const [p, st, d, ppl, lda, ds] = await Promise.all([
       supabase.from('profiles').select('*').eq('id', uid).single(),
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('departments').select('*').order('sort'),
       supabase.from('profiles').select('*').order('full_name'),
       supabase.from('leader_dept_access').select('department').eq('leader_id', uid),
+      supabase.from('dept_settings').select('*'),
     ])
+    setDeptSettings((ds.data ?? []) as DeptSettings[])
     const me = p.data as Profile | null
     setProfile(me)
     setSettings(st.data as Settings | null)
@@ -83,6 +88,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await supabase.auth.signOut()
     },
     deptName: (code) => departments.find((d) => d.code === code)?.name ?? (code || '—'),
+    deptSetting: (code) =>
+      deptSettings.find((d) => d.department === code) ?? {
+        department: code ?? '',
+        report_deadline: settings?.report_deadline ?? '18:00:00',
+        report_lock_time: settings?.report_lock_time ?? '23:59:00',
+        leader_remind_delay_min: settings?.leader_remind_delay_min ?? 30,
+        unack_remind_hours: settings?.unack_remind_hours ?? 2,
+        staff_can_see_ranking: settings?.staff_can_see_ranking ?? true,
+      },
     personName: (id) => (id ? people.find((p) => p.id === id)?.full_name ?? 'Không rõ' : 'Hệ thống'),
   }
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>

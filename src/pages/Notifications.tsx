@@ -6,7 +6,7 @@ import { fmtDateTime, fromNow } from '../lib/format'
 import type { Notification } from '../lib/types'
 import { Empty, PageHeader, Spinner, Tabs, must, useLoad } from '../components/ui'
 
-const DOT = { info: 'bg-sky-500', warning: 'bg-amber-500', danger: 'bg-red-600' }
+const DOT = { info: 'bg-sky', warning: 'bg-honey', danger: 'bg-rose' }
 
 export default function Notifications() {
   const { profile } = useAuth()
@@ -38,15 +38,15 @@ export default function Notifications() {
         <Tabs value={filter} onChange={setFilter} items={[{ value: 'unread', label: 'Chưa đọc' }, { value: 'all', label: 'Tất cả' }]} />
         <button className="btn-secondary" onClick={readAll}>Đánh dấu đã đọc hết</button>
       </>} />
-      <div className="card divide-y divide-slate-100">
+      <div className="card divide-y divide-line/70">
         {loading ? <Spinner /> : (data ?? []).length === 0 ? <Empty>Không có thông báo</Empty> : data!.map((n) => (
-          <button key={n.id} onClick={() => open(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-slate-50 ${n.is_read ? 'opacity-60' : ''}`}>
+          <button key={n.id} onClick={() => open(n)} className={`flex w-full items-start gap-3 px-4 py-3 text-left hover:bg-cream ${n.is_read ? 'opacity-60' : ''}`}>
             <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${DOT[n.severity]}`} />
             <span className="flex-1">
               <span className={`block text-sm ${n.is_read ? '' : 'font-semibold'}`}>{n.title}</span>
-              {n.body && <span className="block text-sm text-slate-600">{n.body}</span>}
+              {n.body && <span className="block text-sm text-muted">{n.body}</span>}
             </span>
-            <span className="shrink-0 text-xs text-slate-400" title={fmtDateTime(n.created_at)}>{fromNow(n.created_at)}</span>
+            <span className="shrink-0 text-xs text-muted" title={fmtDateTime(n.created_at)}>{fromNow(n.created_at)}</span>
           </button>
         ))}
       </div>

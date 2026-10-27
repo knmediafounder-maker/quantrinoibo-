@@ -48,7 +48,7 @@ export default function AuditLog() {
                 <td>{fmtDateTime(l.created_at)}</td>
                 <td>{personName(l.user_id)}</td>
                 <td>{label(l.action)}</td>
-                <td><code className="line-clamp-2 break-all text-xs text-slate-500" title={JSON.stringify(l.detail)}>{JSON.stringify(l.detail)}</code></td>
+                <td><code className="line-clamp-2 break-all text-xs text-muted" title={JSON.stringify(l.detail)}>{JSON.stringify(l.detail)}</code></td>
               </tr>
             ))}
           </tbody>

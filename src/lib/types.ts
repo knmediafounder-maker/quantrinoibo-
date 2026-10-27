@@ -70,6 +70,16 @@ export interface Settings {
   company_name: string
 }
 
+/** Cài đặt riêng của từng phòng */
+export interface DeptSettings {
+  department: string
+  report_deadline: string
+  report_lock_time: string
+  leader_remind_delay_min: number
+  unack_remind_hours: number
+  staff_can_see_ranking: boolean
+}
+
 export interface Threshold { id: string; department: string; metric: string; op: 'lt' | 'gt'; value: number; label: string; active: boolean }
 
 export interface Notification {

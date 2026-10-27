@@ -103,8 +103,8 @@ export default function Users() {
               <td>{p.email}</td>
               <td>{deptName(p.department)}</td>
               <td>{p.position || '—'}</td>
-              <td><Badge className={p.role === 'admin' ? 'bg-purple-100 text-purple-700' : p.role === 'leader' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100'}>{ROLE_LABEL[p.role]}</Badge></td>
-              <td>{p.is_active ? <Badge className="bg-green-100 text-green-700">Hoạt động</Badge> : <Badge className="bg-red-100 text-red-700">Đã khóa</Badge>}</td>
+              <td><Badge className={p.role === 'admin' ? 'bg-plum-light text-plum-dark' : p.role === 'leader' ? 'bg-sky-light text-sky-dark' : 'bg-sand/60'}>{ROLE_LABEL[p.role]}</Badge></td>
+              <td>{p.is_active ? <Badge className="bg-sage-light text-sage-dark">Hoạt động</Badge> : <Badge className="bg-rose-light text-rose-dark">Đã khóa</Badge>}</td>
               <td className="whitespace-nowrap text-right">
                 <button className="btn-ghost px-2 py-1 text-xs" onClick={() => setEditing(p)}>Sửa</button>
                 {p.id !== profile!.id && <button className="btn-ghost px-2 py-1 text-xs" onClick={() => toggle(p)}>{p.is_active ? 'Khóa' : 'Mở khóa'}</button>}

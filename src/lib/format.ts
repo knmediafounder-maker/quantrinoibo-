@@ -33,24 +33,24 @@ export const STATUS_LABEL: Record<TaskStatus, string> = {
   new: 'Mới', doing: 'Đang làm', review: 'Chờ duyệt', done: 'Hoàn thành', overdue: 'Quá hạn',
 }
 export const STATUS_COLOR: Record<TaskStatus, string> = {
-  new: 'bg-slate-100 text-slate-700',
-  doing: 'bg-blue-100 text-blue-700',
-  review: 'bg-amber-100 text-amber-800',
-  done: 'bg-green-100 text-green-700',
-  overdue: 'bg-red-100 text-red-700',
+  new: 'bg-sand/60 text-ink-soft',
+  doing: 'bg-sky-light text-sky-dark',
+  review: 'bg-honey-light text-honey-dark',
+  done: 'bg-sage-light text-sage-dark',
+  overdue: 'bg-rose-light text-rose-dark',
 }
 export const PRIORITY_LABEL: Record<Priority, string> = { low: 'Thấp', normal: 'Bình thường', high: 'Cao', urgent: 'Khẩn' }
 export const PRIORITY_COLOR: Record<Priority, string> = {
-  low: 'bg-slate-100 text-slate-600',
-  normal: 'bg-sky-50 text-sky-700',
-  high: 'bg-orange-100 text-orange-700',
-  urgent: 'bg-red-600 text-white',
+  low: 'bg-sand/60 text-muted',
+  normal: 'bg-sky-light text-sky-dark',
+  high: 'bg-clay-light text-clay-dark',
+  urgent: 'bg-rose text-white',
 }
 export const ACK_LABEL: Record<Ack, string> = { pending: 'Chưa xác nhận', understood: 'Đã đọc và hiểu', need_discuss: 'Cần trao đổi lại' }
 export const ACK_COLOR: Record<Ack, string> = {
-  pending: 'bg-slate-100 text-slate-600',
-  understood: 'bg-green-100 text-green-700',
-  need_discuss: 'bg-amber-100 text-amber-800',
+  pending: 'bg-sand/60 text-muted',
+  understood: 'bg-sage-light text-sage-dark',
+  need_discuss: 'bg-honey-light text-honey-dark',
 }
 export const RECUR_LABEL = { daily: 'Hằng ngày', weekly: 'Hằng tuần', monthly: 'Hằng tháng' } as const
 
@@ -60,6 +60,10 @@ export const METRIC_LABEL: Record<string, string> = {
   return_rate: 'Tỷ lệ hoàn (%)',
   backlog: 'Đơn tồn / người (đơn)',
   team_backlog: 'Tổng đơn tồn phòng (đơn)',
+  ads_ratio: 'Chi phí / doanh số (%)',
+  cost_per_mess: 'Chi phí / mess (VNĐ)',
+  cost_per_order: 'Chi phí / đơn (VNĐ)',
+  mess_order_rate: 'Tỷ lệ mess → đơn (%)',
 }
 
 /** Khoảng ngày theo kỳ ngày/tuần/tháng */

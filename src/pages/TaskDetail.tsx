@@ -49,7 +49,7 @@ export default function TaskDetail() {
 
   if (loading) return <Spinner />
   if (error) return <ErrorText error={error} />
-  if (!task) return <div className="card p-6">Không tìm thấy việc hoặc bạn không có quyền xem. <Link className="text-brand-600" to="/viec">Quay lại</Link></div>
+  if (!task) return <div className="card p-6">Không tìm thấy việc hoặc bạn không có quyền xem. <Link className="text-clay-dark" to="/viec">Quay lại</Link></div>
 
   const mine = task.task_assignees?.find((a) => a.user_id === me.id)
   const isCreator = task.created_by === me.id
@@ -91,13 +91,13 @@ export default function TaskDetail() {
     <div className="grid grid-cols-3 gap-5">
       <div className="col-span-2 space-y-5">
         <div className="card p-5">
-          <div className="mb-2 text-sm"><Link to="/viec" className="text-brand-600">← Việc</Link></div>
+          <div className="mb-2 text-sm"><Link to="/viec" className="text-clay-dark">← Việc</Link></div>
           <div className="flex flex-wrap items-start justify-between gap-3">
             <h1 className="text-2xl font-semibold">{task.title}</h1>
             <div className="flex gap-2">
               {canEdit && <button className="btn-secondary" onClick={() => setEditing(true)}>Sửa</button>}
               {canEdit && (
-                <button className="btn-ghost text-red-600" onClick={async () => {
+                <button className="btn-ghost text-rose-dark" onClick={async () => {
                   if (confirm('Xóa việc này? Không thể hoàn tác.') && await run(() => supabase.rpc('delete_task', { p_task: task.id }))) nav('/viec')
                 }}>Xóa</button>
               )}
@@ -106,14 +106,14 @@ export default function TaskDetail() {
           <div className="mt-2 flex flex-wrap gap-2">
             <Badge className={STATUS_COLOR[task.status]}>{STATUS_LABEL[task.status]}</Badge>
             <Badge className={PRIORITY_COLOR[task.priority]}>Ưu tiên: {PRIORITY_LABEL[task.priority]}</Badge>
-            {task.requires_approval && <Badge className="bg-purple-100 text-purple-700">Cần duyệt</Badge>}
-            {task.recurrence && <Badge className="bg-slate-100">🔁 {RECUR_LABEL[task.recurrence]}</Badge>}
+            {task.requires_approval && <Badge className="bg-plum-light text-plum-dark">Cần duyệt</Badge>}
+            {task.recurrence && <Badge className="bg-sand/60">🔁 {RECUR_LABEL[task.recurrence]}</Badge>}
           </div>
-          {task.description && <p className="mt-4 whitespace-pre-wrap text-slate-700">{task.description}</p>}
+          {task.description && <p className="mt-4 whitespace-pre-wrap text-ink-soft">{task.description}</p>}
 
           {mine?.ack === 'pending' && (
-            <div className="mt-5 rounded-lg border-2 border-amber-300 bg-amber-50 p-4">
-              <div className="font-medium text-amber-900">Bạn cần xác nhận đã nhận việc này</div>
+            <div className="mt-5 rounded-lg border-2 border-honey/60 bg-honey-light p-4">
+              <div className="font-medium text-honey-dark">Bạn cần xác nhận đã nhận việc này</div>
               {!discussing ? (
                 <div className="mt-3 flex gap-2">
                   <button className="btn-primary" disabled={busy} onClick={() => run(() => supabase.rpc('ack_task', { p_task: task.id, p_ack: 'understood' }))}>✓ Đã đọc và hiểu</button>
@@ -164,13 +164,13 @@ export default function TaskDetail() {
         <Card title="Trao đổi">
           <div className="max-h-[28rem] space-y-3 overflow-y-auto">
             {(comments.data ?? []).map((c) => c.is_system ? (
-              <div key={c.id} className="text-center text-xs text-slate-500">
+              <div key={c.id} className="text-center text-xs text-muted">
                 {c.user_id ? <b>{personName(c.user_id)}</b> : null} {c.body} · {fmtDateTime(c.created_at)}
               </div>
             ) : (
               <div key={c.id} className={`flex ${c.user_id === me.id ? 'justify-end' : ''}`}>
-                <div className={`max-w-[80%] rounded-lg px-3 py-2 ${c.user_id === me.id ? 'bg-brand-600 text-white' : 'bg-slate-100'}`}>
-                  <div className={`text-xs ${c.user_id === me.id ? 'text-white/80' : 'text-slate-500'}`}>
+                <div className={`max-w-[80%] rounded-lg px-3 py-2 ${c.user_id === me.id ? 'bg-espresso text-white' : 'bg-sand/60'}`}>
+                  <div className={`text-xs ${c.user_id === me.id ? 'text-white/80' : 'text-muted'}`}>
                     {personName(c.user_id)} · {fmtDateTime(c.created_at)}
                   </div>
                   <div className="whitespace-pre-wrap text-sm">{c.body}</div>
@@ -190,10 +190,10 @@ export default function TaskDetail() {
       <div className="space-y-5">
         <Card title="Thông tin">
           <dl className="space-y-2 text-sm">
-            <div className="flex justify-between"><dt className="text-slate-500">Người giao</dt><dd>{personName(task.created_by)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Ngày giao</dt><dd>{fmtDateTime(task.created_at)}</dd></div>
-            <div className="flex justify-between"><dt className="text-slate-500">Hạn chót</dt><dd className={task.status === 'overdue' ? 'text-red-600' : ''}>{fmtDateTime(task.due_at)}</dd></div>
-            {task.completed_at && <div className="flex justify-between"><dt className="text-slate-500">Hoàn thành</dt><dd>{fmtDateTime(task.completed_at)}</dd></div>}
+            <div className="flex justify-between"><dt className="text-muted">Người giao</dt><dd>{personName(task.created_by)}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Ngày giao</dt><dd>{fmtDateTime(task.created_at)}</dd></div>
+            <div className="flex justify-between"><dt className="text-muted">Hạn chót</dt><dd className={task.status === 'overdue' ? 'text-rose-dark' : ''}>{fmtDateTime(task.due_at)}</dd></div>
+            {task.completed_at && <div className="flex justify-between"><dt className="text-muted">Hoàn thành</dt><dd>{fmtDateTime(task.completed_at)}</dd></div>}
           </dl>
         </Card>
         <Card title={`Người nhận (${task.task_assignees?.length ?? 0})`}>
@@ -204,8 +204,8 @@ export default function TaskDetail() {
                   <span>{personName(a.user_id)}</span>
                   <Badge className={ACK_COLOR[a.ack]}>{ACK_LABEL[a.ack]}</Badge>
                 </div>
-                {a.ack_at && <div className="text-xs text-slate-500">{fromNow(a.ack_at)}</div>}
-                {a.ack_note && <div className="mt-1 rounded bg-amber-50 px-2 py-1 text-xs text-amber-900">{a.ack_note}</div>}
+                {a.ack_at && <div className="text-xs text-muted">{fromNow(a.ack_at)}</div>}
+                {a.ack_note && <div className="mt-1 rounded bg-honey-light px-2 py-1 text-xs text-honey-dark">{a.ack_note}</div>}
               </li>
             ))}
           </ul>
@@ -213,12 +213,12 @@ export default function TaskDetail() {
         <Card title="File đính kèm" actions={
           <label className="btn-ghost cursor-pointer px-2 py-1 text-xs">+ Thêm<input type="file" multiple className="hidden" onChange={(e) => addFiles(e.target.files)} /></label>
         }>
-          {(files.data ?? []).length === 0 ? <div className="text-sm text-slate-500">Chưa có file</div> : (
+          {(files.data ?? []).length === 0 ? <div className="text-sm text-muted">Chưa có file</div> : (
             <ul className="space-y-1 text-sm">
               {files.data!.map((f) => (
                 <li key={f.id} className="flex items-center justify-between gap-2">
-                  <button className="truncate text-left text-brand-600 hover:underline" onClick={() => openFile(f)}>📎 {f.file_name}</button>
-                  <span className="shrink-0 text-xs text-slate-400">{(f.size_bytes / 1024).toFixed(0)} KB</span>
+                  <button className="truncate text-left text-clay-dark hover:underline" onClick={() => openFile(f)}>📎 {f.file_name}</button>
+                  <span className="shrink-0 text-xs text-muted">{(f.size_bytes / 1024).toFixed(0)} KB</span>
                 </li>
               ))}
             </ul>
