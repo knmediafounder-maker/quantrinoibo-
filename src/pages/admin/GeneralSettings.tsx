@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useAuth } from '../../lib/auth'
 import { supabase, errMsg } from '../../lib/supabase'
 import type { DeptSettings } from '../../lib/types'
+import { METRICS, THRESHOLD_METRICS } from '../../lib/kpi'
 import { Card, ErrorText, Field, Tabs } from '../../components/ui'
 
 export default function GeneralSettings() {
@@ -45,6 +46,11 @@ export default function GeneralSettings() {
             <input className="input" type="time" value={s.report_lock_time.slice(0, 5)} onChange={(e) => setS({ ...s, report_lock_time: e.target.value })} />
           </Field>
           <Field label="Nhắc leader sau giờ hạn (phút)"><input className="input" type="number" min={0} value={s.leader_remind_delay_min} onChange={(e) => setS({ ...s, leader_remind_delay_min: Number(e.target.value) })} /></Field>
+          <Field label="Chỉ số xếp hạng" hint="Bảng xếp hạng trong phòng sắp theo chỉ số này">
+            <select className="input" value={s.rank_metric ?? ''} onChange={(e) => setS({ ...s, rank_metric: e.target.value })}>
+              {(THRESHOLD_METRICS[dept] ?? Object.keys(METRICS)).filter((k) => k !== 'team_shipping').map((k) => <option key={k} value={k}>{METRICS[k].label}</option>)}
+            </select>
+          </Field>
           <Field label="Nhắc chưa xác nhận việc sau (giờ)"><input className="input" type="number" min={1} value={s.unack_remind_hours} onChange={(e) => setS({ ...s, unack_remind_hours: Number(e.target.value) })} /></Field>
         </div>
         <label className="mt-5 flex items-center gap-2 text-sm text-ink-soft">

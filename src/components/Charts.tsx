@@ -39,3 +39,21 @@ export function BarSummary({ data, dataKey, money }: { data: Record<string, numb
     </ResponsiveContainer>
   )
 }
+
+/** Hai cột cạnh nhau theo ngày (vd chi phí MKT và doanh thu thực) */
+export function DualBarChart({ data, a, b }: { data: Record<string, number | string>[]; a: string; b: string }) {
+  if (!data.length) return <div className="py-10 text-center text-sm text-muted">Chưa có dữ liệu</div>
+  return (
+    <ResponsiveContainer width="100%" height={280}>
+      <BarChart data={data} margin={{ top: 8, right: 4, bottom: 0, left: 4 }}>
+        <CartesianGrid stroke="#efe9e0" vertical={false} />
+        <XAxis dataKey="date" tick={AXIS} tickLine={false} axisLine={false} />
+        <YAxis tick={AXIS} tickLine={false} axisLine={false} tickFormatter={short} width={52} />
+        <Tooltip {...TOOLTIP} cursor={{ fill: '#f3eee7' }} formatter={(v: number) => fmtVND(v)} />
+        <Legend wrapperStyle={{ fontSize: 12 }} iconType="circle" iconSize={8} />
+        <Bar dataKey={a} fill="#e0875a" radius={[5, 5, 0, 0]} maxBarSize={18} />
+        <Bar dataKey={b} fill="#8fcfb2" radius={[5, 5, 0, 0]} maxBarSize={18} />
+      </BarChart>
+    </ResponsiveContainer>
+  )
+}

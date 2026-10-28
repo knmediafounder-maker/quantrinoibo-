@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg } from '../lib/supabase'
 import { fmtDate, fmtDateTime, fmtNum, fmtVND } from '../lib/format'
+import { METRICS, fmtMetric, kpiValue, metricsOf } from '../lib/kpi'
 import type { DailyReport, ReportComment, Template } from '../lib/types'
 import { ErrorText, must, useLoad } from './ui'
 
@@ -29,6 +30,17 @@ export default function ReportDetail({ report, template }: { report: DailyReport
         {personName(report.user_id)} · Ngày {fmtDate(report.report_date)} · Nộp {fmtDateTime(report.submitted_at)}
         {report.updated_at !== report.submitted_at && <> · Sửa {fmtDateTime(report.updated_at)}</>}
       </div>
+      {report.data.auto && (
+        <dl className="grid grid-cols-2 gap-3 rounded-xl bg-cream p-3 sm:grid-cols-3">
+          {metricsOf(report.department).map((k) => (
+            <div key={k}>
+              <dt className="text-xs text-muted">{METRICS[k].label}</dt>
+              <dd className="font-medium">{fmtMetric(k, kpiValue(report.data.auto, k))}</dd>
+            </div>
+          ))}
+          <div className="col-span-full text-[11px] text-muted">Số liệu tự động từ POSCake / Facebook tại thời điểm gửi báo cáo</div>
+        </dl>
+      )}
       <dl className="grid grid-cols-2 gap-3">
         {(template?.fields ?? []).map((f) => (
           <div key={f.key} className={f.type === 'text' ? 'col-span-2' : ''}>

@@ -57,6 +57,7 @@ export default function Layout() {
   useEffect(() => setSideOpen(false), [loc.pathname])
   if (!profile) return null
   const isStaff = profile.role === 'staff'
+  const dept = profile.department ?? ''
   const company = settings?.company_name || 'Quản trị nội bộ'
 
   return (
@@ -72,12 +73,17 @@ export default function Layout() {
           <div className="mt-2 space-y-0.5">
             <NavItem to="/" end icon="home" label="Tổng quan" />
             <NavItem to="/viec" icon="task_alt" label="Việc" />
-            {profile.department && profile.role !== 'admin' && <NavItem to="/nop-bao-cao" icon="edit_note" label="Nộp báo cáo" />}
-            <NavItem to="/bao-cao" icon="description" label={isStaff ? 'Báo cáo của tôi' : 'Báo cáo'} />
-            {profile.department && <NavItem to="/hieu-qua" icon="trending_up" label="Hiệu quả của tôi" />}
+            {(dept === 'sale' || viewDepts.includes('sale')) && <NavItem to="/don-cua-toi" icon="shopping_bag" label={dept === 'sale' && isStaff ? 'Đơn của tôi' : 'Đơn hàng Sale'} />}
+            {(dept === 'van_don' || viewDepts.includes('van_don')) && <NavItem to="/hang-doi-giao" icon="local_shipping" label="Hàng đợi giao" />}
+            {(dept === 'marketing' || viewDepts.includes('marketing')) && <NavItem to="/quang-cao" icon="campaign" label="Hiệu quả quảng cáo" />}
+            <NavItem to="/don-van-de" icon="report" label="Đơn có vấn đề" />
+            {dept && profile.role !== 'admin' && <NavItem to="/hieu-qua" icon="trending_up" label="Hiệu quả của tôi" />}
+            {dept && profile.role !== 'admin' && <NavItem to="/nop-bao-cao" icon="edit_note" label="Báo cáo hằng ngày" />}
+            {!isStaff && <NavItem to="/bao-cao" icon="description" label="Báo cáo của phòng" />}
+            {isStaff && <NavItem to="/bao-cao" icon="history" label="Báo cáo đã gửi" />}
             <NavItem to="/thong-bao" icon="notifications" label="Thông báo" badge={unread} />
           </div>
-          {viewDepts.length > 0 && <Section>Phòng ban</Section>}
+          {viewDepts.length > 0 && <Section>Dashboard phòng</Section>}
           <div className="space-y-0.5">
             {viewDepts.map((d) => (
               <NavItem key={d} to={`/dashboard/${d}`} icon={DEPT_ICON[d] ?? 'groups'} label={deptName(d)} />

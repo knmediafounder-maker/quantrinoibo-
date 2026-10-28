@@ -5,6 +5,8 @@ import { supabase, errMsg } from '../lib/supabase'
 import { fmtDate, fmtDateTime, fmtVND, todayVN } from '../lib/format'
 import type { DailyReport, Template } from '../lib/types'
 import { Card, ErrorText, PageHeader, Spinner, must, useLoad } from '../components/ui'
+import { KpiGrid, loadPeople } from '../components/Kpi'
+import { metricsOf } from '../lib/kpi'
 
 export default function SubmitReport() {
   const { profile, deptName, deptSetting } = useAuth()
@@ -18,12 +20,13 @@ export default function SubmitReport() {
   const [busy, setBusy] = useState(false)
 
   const { data, loading, reload } = useLoad(async () => {
-    const [tpl, rep, editable] = await Promise.all([
+    const [tpl, rep, editable, auto] = await Promise.all([
       must(supabase.from('report_templates').select('*').eq('department', me.department ?? '').maybeSingle()),
       must(supabase.from('daily_reports').select('*').eq('user_id', me.id).eq('report_date', date).maybeSingle()),
       must(supabase.rpc('can_edit_report', { p_user: me.id, p_date: date })),
+      loadPeople({ from: date, to: date }, me.department).catch(() => []),
     ])
-    return { tpl: tpl as Template | null, rep: rep as DailyReport | null, editable: editable as boolean }
+    return { tpl: tpl as Template | null, rep: rep as DailyReport | null, editable: editable as boolean, auto: auto.find((x) => x.is_me)?.raw }
   }, [date])
 
   useEffect(() => { setValues(data?.rep?.data ?? {}); setSaved(''); setError('') }, [data])
@@ -47,12 +50,16 @@ export default function SubmitReport() {
   const late = rep && rep.submitted_at && new Date(rep.submitted_at).toLocaleTimeString('en-GB', { timeZone: 'Asia/Ho_Chi_Minh' }) > settings.report_deadline
 
   return (
-    <div className="max-w-3xl">
+    <div className="max-w-5xl">
       <PageHeader
-        title="Nộp báo cáo cuối ngày"
+        title="Báo cáo hằng ngày"
         subtitle={<>Phòng {deptName(me.department)} · Hạn nộp {settings.report_deadline.slice(0, 5)} · Sửa được đến {settings.report_lock_time.slice(0, 5)}</>}
         actions={<input type="date" className="input w-44" value={date} max={todayVN()} onChange={(e) => setParams({ ngay: e.target.value })} />}
       />
+      <div className="mb-6">
+        <div className="mb-2 text-sm text-muted">Số liệu ngày {fmtDate(date)} — tự điền từ POSCake / Facebook, không cần nhập tay</div>
+        <KpiGrid metrics={metricsOf(me.department)} cur={data.auto ?? {}} />
+      </div>
       <Card title={`Báo cáo ngày ${fmtDate(date)}`} actions={
         rep ? <span className={`text-xs ${late ? 'text-clay-dark' : 'text-sage-dark'}`}>Đã nộp {fmtDateTime(rep.submitted_at)}{late ? ' (muộn)' : ''}</span>
             : <span className="text-xs text-rose-dark">Chưa nộp</span>

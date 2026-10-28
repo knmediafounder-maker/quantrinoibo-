@@ -7,8 +7,10 @@ import Thresholds from './Thresholds'
 import GeneralSettings from './GeneralSettings'
 import TaskStatsPage from './TaskStatsPage'
 import AuditLog from './AuditLog'
+import Integration from './Integration'
 
 const TABS = [
+  ['ket-noi', 'Kết nối dữ liệu'],
   ['tai-khoan', 'Tài khoản'],
   ['quyen-leader', 'Quyền leader'],
   ['mau-bao-cao', 'Mẫu báo cáo'],
@@ -21,7 +23,7 @@ const TABS = [
 export default function Admin() {
   return (
     <div>
-      <PageHeader title="Cài đặt & quản trị" subtitle="Tài khoản, phân quyền, mẫu báo cáo, ngưỡng nhắc nhở và cài đặt theo từng phòng ban" />
+      <PageHeader title="Cài đặt & quản trị" subtitle="Kết nối POSCake / Facebook, tài khoản, phân quyền, mẫu báo cáo, ngưỡng cảnh báo, cách chia đơn và cài đặt từng phòng" />
       <div className="mb-6 flex flex-wrap gap-1 rounded-full bg-sand/70 p-1 sm:inline-flex">
         {TABS.map(([path, label]) => (
           <NavLink key={path} to={path}
@@ -32,6 +34,7 @@ export default function Admin() {
       </div>
       <Routes>
         <Route index element={<Navigate to="tai-khoan" replace />} />
+        <Route path="ket-noi" element={<Integration />} />
         <Route path="tai-khoan" element={<Users />} />
         <Route path="quyen-leader" element={<LeaderAccess />} />
         <Route path="mau-bao-cao" element={<Templates />} />

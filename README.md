@@ -18,22 +18,25 @@ Hệ thống **không lưu thông tin khách hàng**.
 ### 1. Supabase
 1. Tạo tài khoản và project mới tại https://supabase.com (chọn region Singapore cho nhanh).
 2. **Authentication → Sign In / Providers → Email**: tắt *Allow new users to sign up* (chỉ admin tạo tài khoản).
-3. **Database → Extensions**: bật `pg_cron`.
+3. **Database → Extensions**: bật `pg_cron` và `pg_net`.
 4. Áp cơ sở dữ liệu — chọn một cách:
-   - **Cách A (dễ):** mở **SQL Editor**, lần lượt dán và chạy 4 file trong `supabase/migrations` theo thứ tự tên file.
+   - **Cách A (dễ):** mở **SQL Editor**, dán và chạy `supabase/setup_all.sql` (gộp mọi file trong `supabase/migrations`).
    - **Cách B (CLI):**
      ```bash
      npx supabase login
      npx supabase link --project-ref <mã-project>
      npx supabase db push
      ```
-5. Deploy Edge Function (cần cho trang Quản trị → Tài khoản):
+5. Deploy Edge Function (tài khoản và đồng bộ POSCake / Facebook):
    ```bash
    npx supabase functions deploy admin-users --project-ref <mã-project>
+   npx supabase functions deploy sync-poscake --project-ref <mã-project> --no-verify-jwt
    ```
+   Lịch đồng bộ trong `20261028000006_realtime_data.sql` gọi địa chỉ hàm của project hiện tại — đổi `envtbyrpxlxkuyjneagf` nếu dùng project khác.
 6. Tạo **admin đầu tiên**: **Authentication → Users → Add user** (tick *Auto Confirm User*).
    Tài khoản đầu tiên của hệ thống tự động là **Admin**. Các tài khoản sau tạo trong web: Quản trị → Tài khoản.
 7. Lấy **Project URL** và **anon public key** tại **Project Settings → API**.
+8. Đăng nhập web bằng admin → **Quản trị → Kết nối dữ liệu**: dán API key POSCake, chọn cửa hàng, bấm *Đồng bộ ngay*, rồi liên kết từng nhân viên Sale / Marketing với nhân viên trên POSCake.
 
 ### 2. Chạy thử trên máy
 ```bash

@@ -4,15 +4,14 @@ import dayjs from 'dayjs'
 import { useAuth } from '../lib/auth'
 import { supabase, errMsg } from '../lib/supabase'
 import { fmtDate, fmtDateTime, fmtNum, fmtVND, todayVN, vn } from '../lib/format'
-import { fmtKpi, kpiOf } from '../lib/metrics'
+import { METRICS, fmtMetric, kpiValue, metricsOf } from '../lib/kpi'
 import type { DailyReport, Template } from '../lib/types'
 import { Badge, Card, Empty, ErrorText, Modal, PageHeader, Spinner, must, useLoad } from '../components/ui'
 import ReportDetail from '../components/ReportDetail'
 
-function rateOf(r: DailyReport) {
-  const dk = kpiOf(r.department)
-  return fmtKpi(dk.rate, dk.agg([r])[dk.rate.key])
-}
+/** Chỉ số tự động hiển thị trong danh sách báo cáo */
+const autoCols = (dept: string | null | undefined) => metricsOf(dept).slice(0, 4)
+const autoVal = (r: DailyReport, k: string) => fmtMetric(k, kpiValue(r.data.auto ?? {}, k))
 
 export default function Reports() {
   const { profile, people, viewDepts, deptName, personName, deptSetting } = useAuth()
@@ -63,10 +62,10 @@ export default function Reports() {
   function exportCsv() {
     const tpl = tplOf(dept)
     if (!tpl) return
-    const head = ['Nhân viên', 'Ngày', 'Nộp lúc', ...tpl.fields.map((f) => f.label)]
+    const head = ['Nhân viên', 'Ngày', 'Nộp lúc', ...autoCols(dept).map((k) => METRICS[k].label), ...tpl.fields.map((f) => f.label)]
     const rows = staff.map((p) => {
       const r = byUser[p.id]
-      return [p.full_name, fmtDate(date), r ? fmtDateTime(r.submitted_at) : 'Chưa nộp', ...tpl.fields.map((f) => r?.data[f.key] ?? '')]
+      return [p.full_name, fmtDate(date), r ? fmtDateTime(r.submitted_at) : 'Chưa nộp', ...autoCols(dept).map((k) => (r ? autoVal(r, k) : '')), ...tpl.fields.map((f) => r?.data[f.key] ?? '')]
     })
     const csv = '﻿' + [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const a = document.createElement('a')
@@ -84,15 +83,15 @@ export default function Reports() {
         <div className="card overflow-x-auto">
           {mine.loading ? <Spinner /> : (mine.data ?? []).length === 0 ? <Empty>Chưa có báo cáo</Empty> : (
             <table className="table">
-              <thead><tr><th>Ngày</th>{tpl?.fields.filter((f) => f.type !== 'text').map((f) => <th key={f.key}>{f.label}</th>)}<th>{kpiOf(me.department).rate.label}</th><th>Nộp lúc</th></tr></thead>
+              <thead><tr><th>Ngày</th>{autoCols(me.department).map((k) => <th key={k}>{METRICS[k].label}</th>)}{tpl?.fields.filter((f) => f.type !== 'text').map((f) => <th key={f.key}>{f.label}</th>)}<th>Nộp lúc</th></tr></thead>
               <tbody>
                 {mine.data!.map((r) => (
                   <tr key={r.id} className="cursor-pointer hover:bg-cream" onClick={() => setOpen(r)}>
                     <td className="font-medium">{fmtDate(r.report_date)}</td>
+                    {autoCols(me.department).map((k) => <td key={k}>{autoVal(r, k)}</td>)}
                     {tpl?.fields.filter((f) => f.type !== 'text').map((f) => (
                       <td key={f.key}>{f.type === 'money' ? fmtVND(Number(r.data[f.key])) : fmtNum(Number(r.data[f.key]))}</td>
                     ))}
-                    <td>{rateOf(r)}</td>
                     <td>{fmtDateTime(r.submitted_at)} {isLate(r) && <Badge className="bg-honey-light text-honey-dark">Muộn</Badge>}</td>
                   </tr>
                 ))}
@@ -132,17 +131,18 @@ export default function Reports() {
         {day.loading ? <Spinner /> : (
           <div className="overflow-x-auto">
             <table className="table">
-              <thead><tr><th>Nhân viên</th>{numFields.map((f) => <th key={f.key}>{f.label}</th>)}<th>{kpiOf(dept).rate.label}</th><th>Nộp lúc</th><th>Nhận xét</th><th /></tr></thead>
+              <thead><tr><th>Nhân viên</th>{autoCols(dept).map((k) => <th key={k}>{METRICS[k].label}</th>)}{numFields.map((f) => <th key={f.key}>{f.label}</th>)}<th>Vấn đề</th><th>Gửi lúc</th><th>Nhận xét</th><th /></tr></thead>
               <tbody>
                 {staff.map((p) => {
                   const r = byUser[p.id]
                   return (
                     <tr key={p.id} className={r ? 'cursor-pointer hover:bg-cream' : 'bg-rose-light/40'} onClick={() => r && setOpen(r)}>
                       <td className="font-medium">{p.full_name}</td>
+                      {autoCols(dept).map((k) => <td key={k}>{r ? autoVal(r, k) : ''}</td>)}
                       {numFields.map((f) => (
                         <td key={f.key}>{r ? (f.type === 'money' ? fmtVND(Number(r.data[f.key])) : fmtNum(Number(r.data[f.key]))) : ''}</td>
                       ))}
-                      <td>{r ? rateOf(r) : ''}</td>
+                      <td className="max-w-[14rem] truncate text-xs" title={r?.data.issues ?? ''}>{r?.data.issues ?? ''}</td>
                       <td>{r ? <>{vn(r.submitted_at).format('HH:mm')} {isLate(r) && <Badge className="bg-honey-light text-honey-dark">Muộn</Badge>}</> : <Badge className="bg-rose-light text-rose-dark">Chưa nộp</Badge>}</td>
                       <td>{r && (commentCounts.data?.[r.id] ? `💬 ${commentCounts.data[r.id]}` : <span className="text-xs text-muted">Chưa nhận xét</span>)}</td>
                       <td onClick={(e) => e.stopPropagation()}>

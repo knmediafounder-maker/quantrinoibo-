@@ -11,9 +11,9 @@ export function Card({ title, actions, children, className = '', footer }: {
   return (
     <div className={`card flex flex-col ${className}`}>
       {(title || actions) && (
-        <div className="flex items-center justify-between gap-2 px-5 pt-4">
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 pt-4">
           <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
-          <div className="flex items-center gap-2 text-xs text-muted">{actions}</div>
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">{actions}</div>
         </div>
       )}
       <div className="flex-1 p-5">{children}</div>

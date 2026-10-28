@@ -1,20 +1,19 @@
 import { useState } from 'react'
 import { useAuth } from '../../lib/auth'
 import { supabase, errMsg } from '../../lib/supabase'
-import { METRIC_LABEL } from '../../lib/format'
+import { METRICS, THRESHOLD_METRICS } from '../../lib/kpi'
 import type { Threshold } from '../../lib/types'
 import { Card, Empty, ErrorText, Tabs, must, useLoad } from '../../components/ui'
 
-const METRICS_BY_DEPT: Record<string, string[]> = {
-  sale: ['close_rate'],
-  van_don: ['delivery_rate', 'return_rate', 'backlog', 'team_backlog'],
-  marketing: ['ads_ratio', 'cost_per_mess', 'cost_per_order', 'mess_order_rate'],
+const label = (m: string) => {
+  const d = METRICS[m]
+  return d ? `${d.label} (${d.fmt === 'pct' ? '%' : d.fmt === 'vnd' ? 'VNĐ' : 'số'})` : m
 }
 
 export default function Thresholds() {
   const { departments } = useAuth()
   const [dept, setDept] = useState(departments[0]?.code ?? 'sale')
-  const metrics = METRICS_BY_DEPT[dept] ?? []
+  const metrics = THRESHOLD_METRICS[dept] ?? Object.keys(METRICS)
   const { data, reload } = useLoad(() => must(supabase.from('thresholds').select('*').order('label')) as Promise<Threshold[]>, [])
   const [error, setError] = useState('')
   const [draft, setDraft] = useState({ metric: '', op: 'lt', value: '', label: '' })
@@ -40,9 +39,9 @@ export default function Thresholds() {
   }
 
   return (
-    <Card title="Ngưỡng nhắc nhở chỉ số xấu" actions={<Tabs value={dept} onChange={(d) => { setDept(d); setDraft({ metric: '', op: 'lt', value: '', label: '' }) }} items={departments.map((d) => ({ value: d.code, label: d.name }))} />}>
+    <Card title="Ngưỡng cảnh báo chỉ số" actions={<Tabs value={dept} onChange={(d) => { setDept(d); setDraft({ metric: '', op: 'lt', value: '', label: '' }) }} items={departments.map((d) => ({ value: d.code, label: d.name }))} />}>
       <p className="mb-4 text-sm text-muted">
-        Khi nhân viên phòng này nộp báo cáo có chỉ số vượt ngưỡng, hệ thống nhắc nhân viên và leader của phòng (mỗi ngày nhắc 1 lần). Chỉ số vượt ngưỡng cũng hiện màu đỏ trên dashboard.
+        Chỉ số tháng này của từng người (tính từ dữ liệu POSCake / Facebook) vượt ngưỡng thì hệ thống nhắc nhân viên và leader của phòng, mỗi ngày 1 lần sau giờ hạn báo cáo. Chỉ số vượt ngưỡng hiện màu đỏ trên các trang. Thêm / xóa chỉ số tùy ý bằng dòng cuối bảng.
       </p>
       <ErrorText error={error} />
       <div className="-mx-5 overflow-x-auto px-5">
@@ -52,7 +51,7 @@ export default function Thresholds() {
             {rows.map((t) => (
               <tr key={t.id}>
                 <td><input className="input" defaultValue={t.label} onBlur={(e) => e.target.value !== t.label && patch(t.id, { label: e.target.value })} /></td>
-                <td>{METRIC_LABEL[t.metric] ?? t.metric}</td>
+                <td>{label(t.metric)}</td>
                 <td>
                   <select className="input w-32" value={t.op} onChange={(e) => patch(t.id, { op: e.target.value as 'lt' })}>
                     <option value="lt">Thấp hơn</option><option value="gt">Cao hơn</option>
@@ -69,7 +68,7 @@ export default function Thresholds() {
                 <td><input className="input" placeholder="VD: Chi phí / mess cao" value={draft.label} onChange={(e) => setDraft({ ...draft, label: e.target.value })} /></td>
                 <td>
                   <select className="input" value={draft.metric || metrics[0]} onChange={(e) => setDraft({ ...draft, metric: e.target.value })}>
-                    {metrics.map((m) => <option key={m} value={m}>{METRIC_LABEL[m]}</option>)}
+                    {metrics.map((m) => <option key={m} value={m}>{label(m)}</option>)}
                   </select>
                 </td>
                 <td>

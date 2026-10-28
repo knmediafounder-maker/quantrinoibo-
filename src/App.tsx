@@ -14,6 +14,10 @@ import MyPerformance from './pages/MyPerformance'
 import DeptDashboard from './pages/DeptDashboard'
 import Notifications from './pages/Notifications'
 import Admin from './pages/admin/Admin'
+import SaleOrders from './pages/SaleOrders'
+import ShipQueue from './pages/ShipQueue'
+import AdsPerformance from './pages/AdsPerformance'
+import Issues from './pages/Issues'
 
 function AdminOnly({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
@@ -51,6 +55,10 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="viec" element={<Tasks />} />
         <Route path="viec/:id" element={<TaskDetail />} />
+        <Route path="don-cua-toi" element={<SaleOrders />} />
+        <Route path="hang-doi-giao" element={<ShipQueue />} />
+        <Route path="quang-cao" element={<AdsPerformance />} />
+        <Route path="don-van-de" element={<Issues />} />
         <Route path="nop-bao-cao" element={<SubmitReport />} />
         <Route path="bao-cao" element={<Reports />} />
         <Route path="hieu-qua" element={<MyPerformance />} />
