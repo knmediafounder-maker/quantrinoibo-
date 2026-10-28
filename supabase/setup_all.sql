@@ -1721,7 +1721,7 @@ create or replace function public.kpi_company(p_from date, p_to date, p_by_day b
 returns table (d date, raw jsonb)
 language plpgsql stable security definer set search_path = public as $$
 begin
-  if public.my_role() not in ('admin', 'leader') then raise exception 'Không có quyền xem'; end if;
+  if coalesce(public.my_role() not in ('admin', 'leader'), true) then raise exception 'Không có quyền xem'; end if;
   return query
   with o as (
     select case when p_by_day then order_date end as d, jsonb_build_object(
@@ -2112,6 +2112,14 @@ begin
   perform public.run_order_reminders();
 end $$;
 revoke execute on function public.run_all_reminders from public, anon, authenticated;
+
+-- Các hàm số liệu chỉ dành cho người đã đăng nhập
+revoke execute on function public.kpi_company(date, date, boolean) from public, anon;
+revoke execute on function public.kpi_people(date, date, text) from public, anon;
+revoke execute on function public.kpi_daily(date, date, text, uuid) from public, anon;
+revoke execute on function public.rank_board(date, date, text) from public, anon;
+grant execute on function public.kpi_company(date, date, boolean), public.kpi_people(date, date, text),
+  public.kpi_daily(date, date, text, uuid), public.rank_board(date, date, text) to authenticated;
 
 -- Ngưỡng tổng đơn đang giao của phòng Vận đơn (thay cho "tổng đơn tồn")
 insert into public.thresholds (department, metric, op, value, label)
