@@ -20,6 +20,7 @@ interface Status {
   orders: number
   ads_rows: number
   pos_users: number
+  demo_orders: number
 }
 
 async function invoke(body: Record<string, unknown>) {
@@ -69,17 +70,48 @@ export default function Integration() {
     st.reload()
   }
 
+  async function demo(action: 'seed' | 'clear') {
+    if (action === 'clear' && !confirm('Xóa toàn bộ đơn hàng và quảng cáo thử?')) return
+    setBusy('demo'); setErr(''); setMsg('')
+    const { data, error } = await supabase.rpc('demo_data', { p_action: action })
+    setBusy('')
+    if (error) return setErr(errMsg(error))
+    const r = data as { orders?: number; ads?: number; sellers?: number; marketers?: number; shippers?: number }
+    setMsg(action === 'seed'
+      ? `Đã tạo ${r.orders} đơn và ${r.ads} dòng quảng cáo thử cho ${r.sellers} sale, ${r.marketers} marketer, chia cho ${r.shippers} nhân viên Vận đơn`
+      : 'Đã xóa dữ liệu thử')
+    st.reload()
+    reloadAuth()
+  }
+
   if (st.loading && !s) return <Spinner />
   if (!s) return <ErrorText error={st.error} />
   const r = s.last_result as { orders?: number; ads?: { rows: number; days: number }; pos_users?: number; by?: string } | null
 
   return (
     <div className="space-y-6">
+      {!s.has_poscake_key && (
+        <Card title="Dữ liệu thử" actions={s.demo_orders > 0 ? <Badge className="bg-honey-light text-honey-dark">Đang dùng {s.demo_orders} đơn thử</Badge> : null}>
+          <p className="text-sm text-ink-soft">
+            Chưa kết nối POSCake nên chưa có số liệu. Tạo dữ liệu thử để test mọi màn hình: khoảng 450 đơn hàng (mã <b>TEST…</b>) và chi phí quảng cáo trong 2 tháng gần nhất,
+            gán cho các tài khoản Sale / Marketing hiện có (tự liên kết với “nhân viên POSCake thử”) và chia cho nhân viên Vận đơn.
+            Khi nhập API key thật, dữ liệu thử tự xóa.
+          </p>
+          <p className="mt-2 text-xs text-muted">Tạo thêm tài khoản Sale / Marketing / Vận đơn trước rồi bấm “Tạo dữ liệu thử” để mỗi người đều có số liệu. Bấm lại sẽ tạo mới từ đầu.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="btn-primary" disabled={!!busy} onClick={() => demo('seed')}>
+              <Icon name="science" /> {busy === 'demo' ? 'Đang tạo…' : s.demo_orders > 0 ? 'Tạo lại dữ liệu thử' : 'Tạo dữ liệu thử'}
+            </button>
+            {s.demo_orders > 0 && <button className="btn-secondary" disabled={!!busy} onClick={() => demo('clear')}>Xóa dữ liệu thử</button>}
+          </div>
+          <div className="mt-3"><ErrorText error={err} />{msg && <div className="text-sm text-sage-dark">{msg}</div>}</div>
+        </Card>
+      )}
       <Card title="POSCake" actions={s.has_poscake_key && s.poscake_shop_id ? <Badge className="bg-sage-light text-sage-dark">Đã kết nối</Badge> : <Badge className="bg-rose-light text-rose-dark">Chưa kết nối</Badge>}>
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div className="space-y-3">
             <Field label={`API key ${s.has_poscake_key ? `(đang dùng ${s.poscake_key_hint})` : ''}`}
-              hint="Lấy trong POSCake: Cài đặt → Nâng cao → Kết nối bên thứ ba → Webhook/API → khung API KEY → Tạo. Khóa chỉ lưu trên máy chủ, trình duyệt không đọc lại được.">
+              hint={`Lấy trong POSCake: Cài đặt → Nâng cao → Kết nối bên thứ ba → Webhook/API → khung API KEY → Tạo. Khóa chỉ lưu trên máy chủ, trình duyệt không đọc lại được.${s.demo_orders ? ' Lưu khóa sẽ xóa dữ liệu thử.' : ''}`}>
               <div className="flex gap-2">
                 <input className="input" type="password" autoComplete="off" placeholder={s.has_poscake_key ? 'Nhập khóa mới để thay' : 'Dán API key'} value={key} onChange={(e) => setKey(e.target.value)} />
                 <button className="btn-primary" disabled={!key.trim()} onClick={() => save({ p_api_key: key }, 'Đã lưu API key').then(() => setKey(''))}>Lưu</button>

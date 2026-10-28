@@ -127,7 +127,8 @@ Xem theo cả phòng hoặc từng marketer; biểu đồ chi phí đặt cạnh
 
 | Việc | Cách làm |
 | --- | --- |
-| Cập nhật cơ sở dữ liệu lần 3 | Dán `supabase/update_3_poscake.sql` vào Supabase → SQL Editor → Run |
+| Cập nhật cơ sở dữ liệu | Lần 3: `supabase/update_3_poscake.sql` (đã chạy 28/10/2026); lần 4: `supabase/update_4_test_data.sql` |
+| Test trước khi có API | Quản trị → Kết nối dữ liệu → **Tạo dữ liệu thử** (≈450 đơn mã TEST… và quảng cáo 2 tháng); nhập API key thật sẽ tự xóa |
 | Kết nối POSCake | Quản trị → Kết nối dữ liệu → dán API key → Tải danh sách → chọn cửa hàng → Đồng bộ ngay |
 | Liên kết nhân viên | Quản trị → Kết nối dữ liệu → Liên kết nhân viên với POSCake (có nút tự khớp theo email) |
 | Đồng bộ | Tự động 10 phút/lần (Edge Function `sync-poscake`); lần đầu lấy 2 tháng gần nhất |
