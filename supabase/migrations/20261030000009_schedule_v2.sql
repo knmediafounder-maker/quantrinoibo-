@@ -107,8 +107,8 @@ begin
   if not public.can_manage_dept(p_dept) then raise exception 'Chỉ người quản lý phòng được xếp lịch'; end if;
   create temp table if not exists _old_sched (user_id uuid, day date, shift int) on commit drop;
   create temp table if not exists _diff_sched (user_id uuid, day date, shift int, action text) on commit drop;
-  delete from _old_sched;
-  delete from _diff_sched;
+  delete from _old_sched where true;  -- Supabase chặn DELETE không có WHERE
+  delete from _diff_sched where true;
   insert into _old_sched select user_id, day, shift from shift_assignments
   where department = p_dept and day between v_week and v_week + 6;
 
