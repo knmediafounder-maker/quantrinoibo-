@@ -116,7 +116,7 @@ export default function Schedule() {
           </>}
 
         {d.changes.length > 0 && <ChangeLog changes={d.changes} shifts={shifts} />}
-        <Leaves dept={dept} canManage={canManage} data={d} days={days} shifts={shifts} members={members} onChanged={data.reload} />
+        <Leaves dept={dept} canManage={canManage} data={d} shifts={shifts} members={members} onChanged={data.reload} />
       </>}
     </div>
   )
@@ -228,7 +228,7 @@ function MyRegistration({ days, shifts, week, open, deadline, offs, sub, onSaved
       sub ? <Badge className="bg-sage-light text-sage-dark">Đã gửi {fmtDateTime(sub.submitted_at)}</Badge>
         : <Badge className="bg-honey-light text-honey-dark">Chưa gửi</Badge>}>
       <p className="mb-3 text-sm text-muted">
-        {open ? <>Bấm vào ca bạn <b>muốn nghỉ</b> (bấm tên thứ để chọn cả ngày). Ca không chọn là ca bạn đi làm được. Gửi trước <b>{deadline}</b>; trước hạn vẫn sửa và gửi lại được.</>
+        {open ? <>Bấm vào ca bạn <b>muốn nghỉ</b> (bấm tên thứ để chọn cả ngày). Ca không chọn là ca bạn đi làm được. Gửi trước <b>{deadline}</b> — trước giờ này bạn sửa và gửi lại thoải mái; sau đó leader xếp và chốt.</>
           : <>Đã hết hạn đăng ký ({deadline}). Leader đang xếp lịch; cần nghỉ thêm thì gửi đơn xin nghỉ bên dưới.</>}
       </p>
       <SlotGrid days={days} shifts={shifts} selected={sel} onToggle={toggle} disabled={() => !open} onLabel="Nghỉ" offLabel="Đi làm" />
@@ -362,7 +362,6 @@ function Planner({ dept, days, shifts, members, data, week, t, onSaved }: {
   }
   async function save(lock = false) {
     if (needNote && dirty && !note.trim()) return setErr('Đã qua 24:00 Chủ nhật: nhập ghi chú lý do thay đổi')
-    if (lock && dayjs().isBefore(t.regDeadline) && !confirm(`Chưa tới hạn đăng ký (${t.regDeadline.format('HH:mm DD/MM')}). Nhân viên sẽ không gửi đăng ký được nữa. Chốt luôn?`)) return
     setBusy(true)
     setErr('')
     if (dirty || lock) {
@@ -380,6 +379,7 @@ function Planner({ dept, days, shifts, members, data, week, t, onSaved }: {
     onSaved()
   }
   const count = (d: string, s: number) => members.filter((m) => cells.has(key(m.id, d, s))).length
+  const regOpen = dayjs().isBefore(t.regDeadline)
   const submitted = members.filter((m) => subOf(m.id)).length
 
   return (
@@ -392,10 +392,18 @@ function Planner({ dept, days, shifts, members, data, week, t, onSaved }: {
             ? <button className="btn-primary" disabled={busy || !dirty} onClick={() => save()}><Icon name="save" /> Lưu thay đổi</button>
             : <>
               <button className="btn-secondary" disabled={busy || !dirty} onClick={() => save()}>Lưu nháp</button>
-              <button className="btn-primary" disabled={busy} onClick={() => save(true)}><Icon name="lock" /> Chốt lịch</button>
+              <button className="btn-primary" disabled={busy || regOpen} onClick={() => save(true)}
+                title={regOpen ? `Chốt được sau ${t.regDeadline.format('HH:mm')} CN ${t.regDeadline.format('DD/MM')}` : ''}>
+                <Icon name="lock" /> Chốt lịch
+              </button>
             </>}
         </span>
       </div>
+      {!locked && regOpen && (
+        <p className="mb-3 rounded-xl bg-sky-light/50 px-3 py-2 text-sm">
+          Nhân viên còn đăng ký đến <b>{t.regDeadline.format('HH:mm')} CN {t.regDeadline.format('DD/MM')}</b>. Bạn xếp trước và lưu nháp được; nút Chốt lịch mở sau giờ này.
+        </p>
+      )}
       {locked && (
         <div className={`mb-3 rounded-xl px-3 py-2 text-sm ${needNote ? 'bg-honey-light/60' : 'bg-sage-light/50'}`}>
           {needNote ? <>
@@ -532,37 +540,17 @@ function PersonModal({ person, days, shifts, sub, cells, setCells, offOf, onLeav
   )
 }
 
-/** Xin nghỉ: tích ngày + ca; leader duyệt và xếp người bù */
-function Leaves({ dept, canManage, data, days, shifts, members, onChanged }: {
-  dept: string; canManage: boolean; data: WeekData; days: string[]; shifts: Shift[]; members: Profile[]; onChanged: () => void
+/** Xin nghỉ: chọn trong các ca mình đang có ở lịch đã chốt (từ hôm nay); leader duyệt và xếp người bù */
+function Leaves({ dept, canManage, data, shifts, members, onChanged }: {
+  dept: string; canManage: boolean; data: WeekData; shifts: Shift[]; members: Profile[]; onChanged: () => void
 }) {
   const { profile, personName } = useAuth()
   const me = profile!
   const mineDept = me.department === dept
-  const [sel, setSel] = useState<Set<string>>(new Set())
-  const [reason, setReason] = useState('')
   const [err, setErr] = useState('')
-  const [busy, setBusy] = useState(false)
   const [reviewing, setReviewing] = useState<LeaveRequest | null>(null)
-  useEffect(() => setSel(new Set()), [days])
-  const today = todayVN()
-  const myAsg = new Set(data.asg.filter((a) => a.user_id === me.id).map((a) => slotKey(a.day, a.shift)))
-  const toggle = (d: string, s: number) => setSel((x) => { const n = new Set(x); const k = slotKey(d, s); if (n.has(k)) n.delete(k); else n.add(k); return n })
   const leaves = data.leaves
 
-  async function submit(e: FormEvent) {
-    e.preventDefault()
-    if (!sel.size) return setErr('Tích chọn ngày và ca muốn nghỉ')
-    setBusy(true)
-    const p_slots = [...sel].map((k) => { const [d, s] = k.split('|'); return { d, s: Number(s) } })
-    const { error } = await supabase.rpc('request_leave', { p_slots, p_reason: reason })
-    setBusy(false)
-    if (error) return setErr(errMsg(error))
-    setErr('')
-    setSel(new Set())
-    setReason('')
-    onChanged()
-  }
   async function cancel(l: LeaveRequest) {
     const { error } = await supabase.rpc('review_leave', { p_id: l.id, p_approve: false, p_note: '' })
     if (error) return setErr(errMsg(error))
@@ -576,17 +564,7 @@ function Leaves({ dept, canManage, data, days, shifts, members, onChanged }: {
     <div id="xin-nghi" className="grid grid-cols-1 gap-6 xl:grid-cols-2">
       {mineDept && (
         <Card title="Xin nghỉ">
-          <p className="mb-3 text-sm text-muted">Tích các ca muốn nghỉ trong tuần đang xem (đổi tuần ở trên). Chấm xanh là ca bạn đang có lịch.</p>
-          <form onSubmit={submit} className="space-y-4">
-            <SlotGrid days={days} shifts={shifts} selected={sel} onToggle={toggle} disabled={(d) => d < today}
-              mark={(d, s) => myAsg.has(slotKey(d, s))} onLabel="Xin nghỉ" offLabel="" />
-            <Field label="Lý do *"><textarea className="input" rows={2} required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-            <ErrorText error={err} />
-            <div className="flex items-center gap-3">
-              <button className="btn-primary" disabled={busy || !sel.size}>{busy ? 'Đang gửi…' : 'Gửi đơn xin nghỉ'}</button>
-              <span className="text-sm text-muted">{sel.size} ca</span>
-            </div>
-          </form>
+          <LeaveForm dept={dept} shifts={shifts} pendingMine={mine.filter((l) => l.status === 'pending')} onSent={onChanged} />
           <div className="mt-5">
             <div className="mb-2 text-sm font-medium">Đơn của tôi</div>
             {!mine.length ? <div className="text-sm text-muted">Chưa có đơn nào</div> : (
@@ -603,6 +581,7 @@ function Leaves({ dept, canManage, data, days, shifts, members, onChanged }: {
                 ))}
               </ul>
             )}
+            <ErrorText error={err} />
           </div>
         </Card>
       )}
@@ -632,6 +611,82 @@ function Leaves({ dept, canManage, data, days, shifts, members, onChanged }: {
       )}
       {reviewing && <ReviewLeave leave={reviewing} dept={dept} shifts={shifts} members={members} onClose={() => setReviewing(null)} onDone={() => { setReviewing(null); onChanged() }} />}
     </div>
+  )
+}
+
+/** Các ca mình đang có trong lịch đã chốt, từ hôm nay đến hết tuần (thêm tuần sau nếu đã chốt) — tích ca muốn nghỉ */
+function LeaveForm({ dept, shifts, pendingMine, onSent }: { dept: string; shifts: Shift[]; pendingMine: LeaveRequest[]; onSent: () => void }) {
+  const { profile } = useAuth()
+  const today = todayVN()
+  const thisWeek = monday(today)
+  const nextWeek = dayjs(thisWeek).add(7, 'day').format('YYYY-MM-DD')
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const [reason, setReason] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const mine = useLoad(async () => {
+    const [weeks, asg] = await Promise.all([
+      must(supabase.from('schedule_weeks').select('*').eq('department', dept).in('week_start', [thisWeek, nextWeek])) as Promise<ScheduleWeek[]>,
+      must(supabase.from('shift_assignments').select('*').eq('user_id', profile!.id).gte('day', today)
+        .lte('day', dayjs(nextWeek).add(6, 'day').format('YYYY-MM-DD')).order('day').order('shift')) as Promise<ShiftAssignment[]>,
+    ])
+    const locked = new Set(weeks.filter((w) => w.status === 'locked').map((w) => w.week_start))
+    return { thisLocked: locked.has(thisWeek), slots: asg.filter((a) => locked.has(monday(a.day))) }
+  }, [dept, pendingMine.length])
+  const waiting = new Set(pendingMine.flatMap((l) => l.slots.map((x) => slotKey(x.d, x.s))))
+  const byDay = new Map<string, ShiftAssignment[]>()
+  for (const a of mine.data?.slots ?? []) byDay.set(a.day, [...(byDay.get(a.day) ?? []), a])
+  const toggle = (k: string) => setSel((x) => { const n = new Set(x); if (n.has(k)) n.delete(k); else n.add(k); return n })
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    setBusy(true)
+    const p_slots = [...sel].map((k) => { const [d, s] = k.split('|'); return { d, s: Number(s) } })
+    const { error } = await supabase.rpc('request_leave', { p_slots, p_reason: reason })
+    setBusy(false)
+    if (error) return setErr(errMsg(error))
+    setErr('')
+    setSel(new Set())
+    setReason('')
+    onSent()
+  }
+
+  if (mine.loading && !mine.data) return <Spinner />
+  if (!byDay.size) {
+    return (
+      <p className="text-sm text-muted">
+        {mine.data?.thisLocked ? 'Bạn không còn ca nào trong tuần này.' : 'Lịch tuần này chưa chốt nên chưa xin nghỉ được.'}{' '}
+        Muốn nghỉ ở tuần sau thì đánh dấu khi đăng ký lịch (trước hạn Chủ nhật).
+      </p>
+    )
+  }
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <p className="text-sm text-muted">Tích các ca muốn nghỉ trong lịch của bạn:</p>
+      <div className="space-y-2">
+        {[...byDay.entries()].map(([d, list]) => (
+          <div key={d} className="flex flex-wrap items-center gap-2">
+            <span className={`w-20 text-sm ${d === today ? 'font-medium text-clay-dark' : 'text-ink'}`}>{d === today ? 'Hôm nay' : dayLabel(d)}</span>
+            {list.map((a) => {
+              const k = slotKey(a.day, a.shift)
+              const on = sel.has(k)
+              const wait = waiting.has(k)
+              return (
+                <button type="button" key={k} disabled={wait} onClick={() => toggle(k)}
+                  className={`rounded-lg border px-3 py-1.5 text-xs transition ${on ? 'border-rose bg-rose-light font-medium text-rose-dark' : 'border-line bg-white text-ink-soft hover:bg-cream'} disabled:cursor-not-allowed disabled:opacity-50`}>
+                  {on && '✓ '}{shifts[a.shift - 1]?.name} <span className="text-muted">{shifts[a.shift - 1]?.start}</span>{wait && ' · đang chờ duyệt'}
+                </button>
+              )
+            })}
+          </div>
+        ))}
+      </div>
+      {sel.size > 0 && <>
+        <Field label="Lý do *"><textarea className="input" rows={2} required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+        <ErrorText error={err} />
+        <button className="btn-primary" disabled={busy}>{busy ? 'Đang gửi…' : `Gửi đơn xin nghỉ ${sel.size} ca`}</button>
+      </>}
+    </form>
   )
 }
 
