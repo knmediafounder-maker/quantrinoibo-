@@ -30,7 +30,8 @@ export const METRICS: Record<string, MetricDef> = {
   sent: M('sent', 'Đơn đã gửi đi', 'num', 'outbox', 'sky'),
   returned: M('returned', 'Đơn hoàn', 'num', 'undo', 'rose', { lowerIsBetter: true }),
   cancelled: M('cancelled', 'Đơn hủy', 'num', 'cancel', 'rose', { lowerIsBetter: true }),
-  rescued: M('rescued', 'Đơn cứu thành công', 'num', 'support', 'honey'),
+  cod_down: M('cod_down', 'Đơn hạ COD', 'num', 'price_change', 'honey', { lowerIsBetter: true, hint: 'COD khách trả thấp hơn lúc gửi' }),
+  cod_down_amt: M('cod_down_amt', 'Tổng tiền hạ COD', 'vnd', 'money_off', 'rose', { lowerIsBetter: true, hint: 'COD lúc gửi − COD thực thu' }),
   return_rate: M('return_rate', 'Tỷ lệ hoàn', 'pct', 'assignment_return', 'rose', { lowerIsBetter: true, hint: 'Đơn hoàn ÷ đơn đã gửi' }),
   delivery_rate: M('delivery_rate', 'Tỷ lệ giao thành công', 'pct', 'verified', 'sage', { hint: 'Giao thành công ÷ đơn đã gửi' }),
   close_rate: M('close_rate', 'Tỷ lệ chốt', 'pct', 'percent', 'plum', { hint: 'Đơn chốt ÷ số data nhận' }),
@@ -105,13 +106,13 @@ export function sumRaw(rs: (Raw | undefined)[]): Raw {
 /** Chỉ số hiển thị theo phòng (đúng thứ tự tài liệu) */
 export const DEPT_METRICS: Record<string, string[]> = {
   sale: ['orders', 'revenue', 'real_revenue', 'shipping', 'close_rate', 'delivery_rate'],
-  van_don: ['shipping', 'delivered', 'delivery_rate', 'return_rate', 'rescued', 'returned'],
+  van_don: ['shipping', 'delivered', 'delivery_rate', 'return_rate', 'cod_down', 'cod_down_amt'],
   marketing: ['spend', 'revenue', 'real_revenue', 'cost_per_mess', 'return_rate', 'mkt_ratio'],
 }
 /** Cột bảng tổng hợp từng người */
 export const DEPT_TABLE: Record<string, string[]> = {
   sale: ['orders', 'revenue', 'real_revenue', 'shipping', 'cancelled', 'close_rate', 'delivery_rate', 'return_rate'],
-  van_don: ['sent', 'shipping', 'delivered', 'returned', 'rescued', 'delivery_rate', 'return_rate'],
+  van_don: ['sent', 'shipping', 'delivered', 'returned', 'cod_down', 'cod_down_amt', 'delivery_rate', 'return_rate'],
   marketing: ['spend', 'messages', 'orders', 'revenue', 'real_revenue', 'cost_per_mess', 'cost_per_order', 'return_rate', 'mkt_ratio'],
 }
 /** Biểu đồ theo ngày: cột + đường */
@@ -125,7 +126,7 @@ export const COMPANY_METRICS = ['revenue', 'real_revenue', 'orders', 'delivered'
 /** Chỉ số dùng được cho ngưỡng nhắc nhở / xếp hạng của từng phòng */
 export const THRESHOLD_METRICS: Record<string, string[]> = {
   sale: ['orders', 'revenue', 'real_revenue', 'close_rate', 'delivery_rate', 'return_rate', 'cancelled', 'aov', 'shipping'],
-  van_don: ['delivery_rate', 'return_rate', 'delivered', 'returned', 'rescued', 'shipping', 'team_shipping'],
+  van_don: ['delivery_rate', 'return_rate', 'delivered', 'returned', 'cod_down', 'cod_down_amt', 'shipping', 'team_shipping'],
   marketing: ['spend', 'revenue', 'real_revenue', 'orders', 'messages', 'cost_per_mess', 'cost_per_order', 'mess_order_rate', 'return_rate', 'mkt_ratio', 'ads_ratio'],
 }
 export const DEFAULT_METRICS = ['orders', 'revenue', 'real_revenue', 'delivery_rate', 'return_rate']

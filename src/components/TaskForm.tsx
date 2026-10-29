@@ -18,7 +18,7 @@ export async function uploadTaskFiles(taskId: string, uid: string, files: FileLi
 }
 
 export default function TaskForm({ task, onDone }: { task?: Task; onDone: (id: string) => void }) {
-  const { profile, people, departments, deptName } = useAuth()
+  const { profile, people, departments, deptName, manageDepts } = useAuth()
   const me = profile!
   const [title, setTitle] = useState(task?.title ?? '')
   const [description, setDescription] = useState(task?.description ?? '')
@@ -33,13 +33,13 @@ export default function TaskForm({ task, onDone }: { task?: Task; onDone: (id: s
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
 
-  // Người có thể giao: admin → tất cả; leader → phòng mình + bản thân; nhân viên → bản thân
+  // Người có thể giao: admin → tất cả; leader → các phòng được toàn quyền + bản thân; nhân viên → bản thân
   const candidates = useMemo(() => {
     const act = people.filter((p) => p.is_active)
     if (me.role === 'admin') return act
-    if (me.role === 'leader') return act.filter((p) => p.id === me.id || (p.department === me.department && p.role !== 'admin'))
+    if (me.role === 'leader') return act.filter((p) => p.id === me.id || (manageDepts.includes(p.department ?? '') && p.role !== 'admin'))
     return act.filter((p) => p.id === me.id)
-  }, [people, me])
+  }, [people, me, manageDepts])
   const grouped = useMemo(() => {
     const g: Record<string, typeof candidates> = {}
     for (const p of candidates) (g[p.department ?? '_'] ??= []).push(p)
@@ -118,8 +118,8 @@ export default function TaskForm({ task, onDone }: { task?: Task; onDone: (id: s
             <label className="flex items-center gap-1"><input type="radio" checked={mode === 'dept'} onChange={() => setMode('dept')} /> Cả phòng</label>
           </div>
           {mode === 'dept' ? (
-            <select className="input" value={dept} onChange={(e) => setDept(e.target.value)} disabled={me.role === 'leader'}>
-              {departments.filter((d) => me.role === 'admin' || d.code === me.department).map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}
+            <select className="input" value={dept} onChange={(e) => setDept(e.target.value)} disabled={manageDepts.length < 2}>
+              {departments.filter((d) => manageDepts.includes(d.code)).map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}
             </select>
           ) : (
             <div className="max-h-56 overflow-y-auto rounded-md border border-line p-2">

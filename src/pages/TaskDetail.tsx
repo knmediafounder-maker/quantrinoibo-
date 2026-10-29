@@ -12,7 +12,7 @@ import TaskForm, { uploadTaskFiles } from '../components/TaskForm'
 export default function TaskDetail() {
   const { id } = useParams()
   const nav = useNavigate()
-  const { profile, people, personName } = useAuth()
+  const { profile, people, personName, manageDepts } = useAuth()
   const me = profile!
   const [err, setErr] = useState('')
   const [editing, setEditing] = useState(false)
@@ -54,7 +54,7 @@ export default function TaskDetail() {
   const mine = task.task_assignees?.find((a) => a.user_id === me.id)
   const isCreator = task.created_by === me.id
   const assigneeDepts = new Set(task.task_assignees?.map((a) => people.find((p) => p.id === a.user_id)?.department))
-  const canApprove = me.role === 'admin' || isCreator || (me.role === 'leader' && assigneeDepts.has(me.department))
+  const canApprove = me.role === 'admin' || isCreator || (me.role === 'leader' && [...assigneeDepts].some((d) => !!d && manageDepts.includes(d)))
   const canEdit = me.role === 'admin' || isCreator
 
   async function run(fn: () => PromiseLike<{ error: unknown }>) {

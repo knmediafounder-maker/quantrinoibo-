@@ -77,11 +77,17 @@ export default function Layout() {
             {(dept === 'van_don' || viewDepts.includes('van_don')) && <NavItem to="/hang-doi-giao" icon="local_shipping" label="Hàng đợi giao" />}
             {(dept === 'marketing' || viewDepts.includes('marketing')) && <NavItem to="/quang-cao" icon="campaign" label="Hiệu quả quảng cáo" />}
             <NavItem to="/don-van-de" icon="report" label="Đơn có vấn đề" />
+            <NavItem to="/lich-lam-viec" icon="calendar_month" label="Lịch làm việc" />
             {dept && profile.role !== 'admin' && <NavItem to="/hieu-qua" icon="trending_up" label="Hiệu quả của tôi" />}
             {dept && profile.role !== 'admin' && <NavItem to="/nop-bao-cao" icon="edit_note" label="Báo cáo hằng ngày" />}
             {!isStaff && <NavItem to="/bao-cao" icon="description" label="Báo cáo của phòng" />}
             {isStaff && <NavItem to="/bao-cao" icon="history" label="Báo cáo đã gửi" />}
             <NavItem to="/thong-bao" icon="notifications" label="Thông báo" badge={unread} />
+          </div>
+          <Section>Cộng đồng</Section>
+          <div className="space-y-0.5">
+            <NavItem to="/bang-tin" icon="celebration" label="Bảng tin" />
+            <NavItem to="/chia-se" icon="diversity_3" label="Góc chia sẻ" />
           </div>
           {viewDepts.length > 0 && <Section>Dashboard phòng</Section>}
           <div className="space-y-0.5">

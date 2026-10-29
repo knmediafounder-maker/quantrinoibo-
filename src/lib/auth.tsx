@@ -11,6 +11,8 @@ export interface AuthCtx {
   people: Profile[]
   /** Phòng leader/admin được xem số liệu */
   viewDepts: string[]
+  /** Phòng leader/admin được toàn quyền (giao việc, duyệt, xếp lịch, chia đơn) */
+  manageDepts: string[]
   loading: boolean
   reload: () => Promise<void>
   signOut: () => Promise<void>
@@ -31,6 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [departments, setDepartments] = useState<Department[]>([])
   const [people, setPeople] = useState<Profile[]>([])
   const [viewDepts, setViewDepts] = useState<string[]>([])
+  const [manageDepts, setManageDepts] = useState<string[]>([])
   const [deptSettings, setDeptSettings] = useState<DeptSettings[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -46,7 +49,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       supabase.from('settings').select('*').eq('id', 1).maybeSingle(),
       supabase.from('departments').select('*').order('sort'),
       supabase.from('profiles').select('*').order('full_name'),
-      supabase.from('leader_dept_access').select('department').eq('leader_id', uid),
+      supabase.from('leader_dept_access').select('department, level').eq('leader_id', uid),
       supabase.from('dept_settings').select('*'),
     ])
     setDeptSettings((ds.data ?? []) as DeptSettings[])
@@ -56,10 +59,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const deps = (d.data ?? []) as Department[]
     setDepartments(deps)
     setPeople((ppl.data ?? []) as Profile[])
-    if (me?.role === 'admin') setViewDepts(deps.map((x) => x.code))
-    else if (me?.role === 'leader')
-      setViewDepts([...new Set([me.department, ...(lda.data ?? []).map((x) => x.department)].filter(Boolean) as string[])])
-    else setViewDepts([])
+    const extra = (lda.data ?? []) as { department: string; level: string }[]
+    const uniq = (xs: (string | null)[]) => [...new Set(xs.filter(Boolean) as string[])]
+    if (me?.role === 'admin') {
+      setViewDepts(deps.map((x) => x.code))
+      setManageDepts(deps.map((x) => x.code))
+    } else if (me?.role === 'leader') {
+      setViewDepts(uniq([me.department, ...extra.map((x) => x.department)]))
+      setManageDepts(uniq([me.department, ...extra.filter((x) => x.level === 'manage').map((x) => x.department)]))
+    } else {
+      setViewDepts([])
+      setManageDepts([])
+    }
     setLoading(false)
   }, [])
 
@@ -82,6 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     departments,
     people,
     viewDepts,
+    manageDepts,
     loading,
     reload: () => load(session),
     signOut: async () => {

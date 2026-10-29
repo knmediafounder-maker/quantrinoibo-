@@ -4,16 +4,16 @@ import { supabase, errMsg } from '../lib/supabase'
 import { ISSUE_KINDS, URGENCY_LABEL } from '../lib/format'
 import { ErrorText, Field, Modal } from './ui'
 
-/** Gửi báo cáo đơn có vấn đề (ai cũng gửi được) */
-export default function IssueForm({ open, onClose, onCreated, orderCode = '', defaultDept }: {
+/** Gửi báo cáo đơn có vấn đề (ai cũng gửi được). Luôn tới admin + leader phòng mình; gắn thẻ thêm phòng khác. */
+export default function IssueForm({ open, onClose, onCreated, orderCode = '', defaultTags = [] }: {
   open: boolean
   onClose: () => void
   onCreated: (id: string) => void
   orderCode?: string
-  defaultDept?: string
+  defaultTags?: string[]
 }) {
-  const { departments, people, profile } = useAuth()
-  const blank = { code: orderCode, kind: ISSUE_KINDS[0], description: '', urgency: 'normal', dept: defaultDept ?? '', user: '' }
+  const { departments, people, profile, deptName } = useAuth()
+  const blank = { code: orderCode, kind: ISSUE_KINDS[0], description: '', urgency: 'normal', tags: defaultTags, user: '' }
   const [f, setF] = useState(blank)
   const [files, setFiles] = useState<File[]>([])
   const [err, setErr] = useState('')
@@ -21,14 +21,15 @@ export default function IssueForm({ open, onClose, onCreated, orderCode = '', de
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { if (open) { setF(blank); setFiles([]); setErr('') } }, [open, orderCode])
 
-  const targets = people.filter((p) => p.is_active && p.id !== profile?.id && (!f.dept || p.department === f.dept))
+  const targets = people.filter((p) => p.is_active && p.id !== profile?.id)
+  const toggleTag = (d: string) => setF({ ...f, tags: f.tags.includes(d) ? f.tags.filter((x) => x !== d) : [...f.tags, d] })
 
   async function submit(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     const { data, error } = await supabase.rpc('create_issue', {
       p_order_code: f.code, p_kind: f.kind, p_description: f.description, p_urgency: f.urgency,
-      p_to_dept: f.dept || null, p_to_user: f.user || null,
+      p_tag_depts: f.tags, p_to_user: f.user || null,
     })
     if (error) { setBusy(false); return setErr(errMsg(error)) }
     const id = data as string
@@ -53,24 +54,32 @@ export default function IssueForm({ open, onClose, onCreated, orderCode = '', de
           </Field>
         </div>
         <Field label="Mô tả"><textarea className="input min-h-20" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 gap-4">
           <Field label="Mức độ gấp">
             <select className="input" value={f.urgency} onChange={(e) => setF({ ...f, urgency: e.target.value })}>
               {Object.entries(URGENCY_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </Field>
-          <Field label="Gửi đến phòng">
-            <select className="input" value={f.dept} onChange={(e) => setF({ ...f, dept: e.target.value, user: '' })}>
-              <option value="">—</option>
-              {departments.map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Hoặc người cụ thể">
+          <Field label="Gửi thêm một người (không bắt buộc)">
             <select className="input" value={f.user} onChange={(e) => setF({ ...f, user: e.target.value })}>
-              <option value="">Leader của phòng</option>
-              {targets.map((p) => <option key={p.id} value={p.id}>{p.full_name}</option>)}
+              <option value="">—</option>
+              {targets.map((p) => <option key={p.id} value={p.id}>{p.full_name} · {deptName(p.department)}</option>)}
             </select>
           </Field>
+        </div>
+        <div>
+          <div className="label">Gắn thẻ phòng liên quan</div>
+          <div className="flex flex-wrap gap-2">
+            {departments.map((d) => (
+              <label key={d.code} className={`flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm ${f.tags.includes(d.code) ? 'border-clay bg-clay-light/50' : 'border-line bg-white'}`}>
+                <input type="checkbox" checked={f.tags.includes(d.code)} onChange={() => toggleTag(d.code)} /> {d.name}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-muted">
+            Phiếu luôn gửi tới admin và leader {profile?.department ? `phòng ${deptName(profile.department)}` : 'các phòng'}.
+            Phòng được gắn thẻ: leader nhận thông báo, nhân viên trong phòng xem và xử lý được.
+          </p>
         </div>
         <Field label="Ảnh / tệp đính kèm">
           <input type="file" multiple accept="image/*,.pdf" className="text-sm" onChange={(e) => setFiles([...(e.target.files ?? [])])} />

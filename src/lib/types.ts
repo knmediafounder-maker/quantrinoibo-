@@ -74,7 +74,10 @@ export interface Settings {
   return_after_days: number
   return_warn_days: number
   auto_assign_shipping: boolean
+  shifts: Shift[]
 }
+
+export interface Shift { name: string; start: string; end: string }
 
 /** Cài đặt riêng của từng phòng */
 export interface DeptSettings {
@@ -123,6 +126,28 @@ export interface Order {
   flags: string[]
   last_note: string | null
   last_note_at: string | null
+  /** Tiền thu hộ hiện tại / đối soát với hãng / lúc gửi hàng; cod_down: số tiền bị hạ khi khách nhận */
+  cod: number | null
+  partner_cod: number | null
+  cod_sent: number | null
+  cod_down: number
+  /** Đang chờ phòng nào xử lý (Sale ↔ Vận đơn) */
+  handoff_to: 'sale' | 'van_don' | null
+  handoff_at: string | null
+}
+
+export interface Handoff {
+  id: string
+  order_id: number
+  from_dept: 'sale' | 'van_don'
+  to_dept: 'sale' | 'van_don'
+  body: string
+  created_by: string | null
+  created_at: string
+  status: 'open' | 'done' | 'returned'
+  result: string | null
+  resolved_by: string | null
+  resolved_at: string | null
 }
 
 export interface OrderNote { id: string; order_id: number; user_id: string | null; kind: string; body: string; created_at: string }
@@ -144,6 +169,7 @@ export interface Issue {
   urgency: 'normal' | 'urgent' | 'critical'
   to_dept: string | null
   to_user: string | null
+  tag_depts: string[]
   status: IssueStatus
   created_by: string
   handled_by: string | null
@@ -154,3 +180,52 @@ export interface Issue {
 }
 export interface IssueComment { id: string; issue_id: string; user_id: string | null; body: string; is_system: boolean; created_at: string }
 export interface IssueFile { id: string; issue_id: string; user_id: string; file_path: string; file_name: string; created_at: string }
+
+export type ShareAudience = 'all' | 'leaders' | 'admin' | 'user'
+export interface SharePost {
+  id: string
+  audience: ShareAudience
+  to_user: string | null
+  category: string
+  body: string
+  created_at: string
+  is_anonymous: boolean
+  author_id: string | null
+  is_mine: boolean
+  likes: number
+  liked: boolean
+  replies: number
+}
+export interface ShareReply { id: string; body: string; created_at: string; is_anonymous: boolean; author_id: string | null; is_mine: boolean; is_post_author: boolean }
+
+export type AnnouncementKind = 'khen_thuong' | 'chuc_mung' | 'thong_bao'
+export interface Announcement {
+  id: string
+  kind: AnnouncementKind
+  title: string
+  body: string
+  image_path: string | null
+  show_until: string | null
+  pinned: boolean
+  created_by: string
+  created_at: string
+  announcement_cheers?: { user_id: string }[]
+}
+
+export interface ScheduleWeek { department: string; week_start: string; status: 'open' | 'locked'; locked_by: string | null; locked_at: string | null }
+export interface ShiftOff { user_id: string; department: string; day: string; shift: number; reason: string }
+export interface ShiftAssignment { department: string; day: string; shift: number; user_id: string }
+export interface LeaveRequest {
+  id: string
+  user_id: string
+  department: string
+  day_from: string
+  day_to: string
+  shifts: number[]
+  reason: string
+  status: 'pending' | 'approved' | 'rejected' | 'cancelled'
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_note: string | null
+  created_at: string
+}

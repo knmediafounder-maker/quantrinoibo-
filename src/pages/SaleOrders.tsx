@@ -6,13 +6,13 @@ import { DEPT_METRICS, daysLeft, sumRaw } from '../lib/kpi'
 import type { Order, Threshold } from '../lib/types'
 import { Card, PageHeader, Spinner, Tabs, must, useLoad } from '../components/ui'
 import { KpiGrid, PeriodPicker, loadDaily, loadPeople, rangeLabel, usePeriod } from '../components/Kpi'
-import { OrderModal, OrderTable, byKeys, isRisky } from '../components/Orders'
+import { EMPTY_FILTER, OrderFilterBar, OrderModal, OrderTable, applyFilter, byKeys, isRisky, useOrderSearch } from '../components/Orders'
 
-type View = 'urgent' | 'shipping' | 'all'
+type View = 'urgent' | 'waiting' | 'shipping' | 'all'
 
 /** Đơn của tôi (Sale): chỉ số, danh sách đơn; đơn sắp đến hạn hoàn lên đầu */
 export default function SaleOrders() {
-  const { profile, people, settings, viewDepts } = useAuth()
+  const { profile, people, settings, viewDepts, manageDepts } = useAuth()
   const me = profile!
   const isManager = me.role === 'admin' || viewDepts.includes('sale')
   const sellers = people.filter((p) => p.department === 'sale' && p.pos_user_id && p.is_active)
@@ -21,6 +21,8 @@ export default function SaleOrders() {
   const [view, setView] = useState<View>('urgent')
   const [params, setParams] = useSearchParams()
   const [open, setOpen] = useState<Order | null>(null)
+  const [filter, setFilter] = useState(EMPTY_FILTER)
+  const found = useOrderSearch(filter.q, { seller: who || undefined })
   const after = settings?.return_after_days ?? 7
   const warn = settings?.return_warn_days ?? 2
   const person = sellers.find((p) => p.pos_user_id === who)
@@ -42,25 +44,29 @@ export default function SaleOrders() {
       ? q.gte('order_date', range.from).lte('order_date', range.to).order('inserted_at', { ascending: false })
       : q.eq('status', 2).order('sent_at', { ascending: true })
     const rows = (await must(q.limit(1000))) as Order[]
-    // Đơn Vận đơn chuyển sang (có thể không còn ở trạng thái đang giao)
+    // Đơn đang chờ trao đổi (có thể không còn ở trạng thái đang giao)
     let extra: Order[] = []
-    if (view === 'urgent') {
-      let xq = supabase.from('orders').select('*').contains('flags', ['to_sale'])
+    if (view === 'urgent' || view === 'waiting') {
+      let xq = supabase.from('orders').select('*').not('handoff_to', 'is', null).not('seller_pos_id', 'is', null)
       if (who) xq = xq.eq('seller_pos_id', who)
-      extra = (await must(xq.limit(200))) as Order[]
+      extra = (await must(xq.limit(300))) as Order[]
     }
     return [...extra, ...rows.filter((o) => !extra.some((x) => x.id === o.id))]
   }, [who, view, range.from, range.to])
 
   const list = useMemo(() => {
+    // Đang tìm theo mã: dùng kết quả tìm trên máy chủ (mọi ngày)
+    if (found) return applyFilter(found, filter, after, warn)
     const rows = orders.data ?? []
     const left = (o: Order) => daysLeft(o.sent_at, o.status, after)
-    const urgentOf = (o: Order) => o.flags.includes('to_sale') || isRisky(o) || (left(o) ?? 99) <= warn
-    const filtered = view === 'urgent' ? rows.filter(urgentOf) : rows
-    // Sắp đến hạn hoàn lên đầu, rồi đơn Vận đơn chuyển sang, rồi nguy cơ cao
-    const key = (o: Order) => [(left(o) ?? 99) <= warn ? 0 : 1, left(o) ?? 99, o.flags.includes('to_sale') ? 0 : 1, isRisky(o) ? 0 : 1]
-    return view === 'all' ? filtered : [...filtered].sort((a, b) => byKeys(key(a), key(b)))
-  }, [orders.data, view, after, warn])
+    const urgentOf = (o: Order) => o.handoff_to === 'sale' || (o.status === 2 && (isRisky(o) || (left(o) ?? 99) <= warn))
+    const filtered = view === 'urgent' ? rows.filter(urgentOf) : view === 'waiting' ? rows.filter((o) => o.handoff_to === 'van_don') : rows
+    // Sắp đến hạn hoàn lên đầu, rồi đơn Vận đơn gửi sang, rồi nguy cơ cao
+    const key = (o: Order) => [(left(o) ?? 99) <= warn ? 0 : 1, left(o) ?? 99, o.handoff_to === 'sale' ? 0 : 1, isRisky(o) ? 0 : 1]
+    const sorted = view === 'all' ? filtered : [...filtered].sort((a, b) => byKeys(key(a), key(b)))
+    return applyFilter(sorted, filter, after, warn)
+  }, [orders.data, view, after, warn, filter, found])
+  const waitingMe = (orders.data ?? []).filter((o) => o.handoff_to === 'sale').length
 
   // Mở đơn từ thông báo (?don=ID)
   const donParam = params.get('don')
@@ -96,13 +102,16 @@ export default function SaleOrders() {
 
         <Card title="Danh sách đơn" actions={
           <Tabs value={view} onChange={setView} items={[
-            { value: 'urgent', label: 'Cần xử lý' }, { value: 'shipping', label: 'Đang giao' }, { value: 'all', label: 'Tất cả trong kỳ' },
+            { value: 'urgent', label: waitingMe ? `Cần xử lý (${waitingMe} chờ Sale)` : 'Cần xử lý' },
+            { value: 'waiting', label: 'Đã gửi Vận đơn' }, { value: 'shipping', label: 'Đang giao' }, { value: 'all', label: 'Tất cả trong kỳ' },
           ]} />}>
+          <OrderFilterBar value={filter} onChange={setFilter} count={list.length} />
+          {found && <p className="-mt-2 mb-3 text-xs text-muted">Kết quả tìm theo mã trên mọi ngày (không theo tab đang chọn).</p>}
           {orders.loading ? <Spinner /> : <OrderTable orders={list} onOpen={setOpen} showSeller={isManager && !who} showShipper />}
         </Card>
       </>}
 
-      <OrderModal order={open} mode={me.department === 'sale' || me.role === 'admin' ? 'sale' : 'view'}
+      <OrderModal order={open} mode={me.department === 'sale' || manageDepts.includes('sale') ? 'sale' : 'view'}
         onClose={() => { setOpen(null); if (donParam) setParams({}) }} onChanged={orders.reload} />
     </div>
   )

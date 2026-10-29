@@ -18,6 +18,9 @@ import SaleOrders from './pages/SaleOrders'
 import ShipQueue from './pages/ShipQueue'
 import AdsPerformance from './pages/AdsPerformance'
 import Issues from './pages/Issues'
+import Share from './pages/Share'
+import Bulletin from './pages/Bulletin'
+import Schedule from './pages/Schedule'
 
 function AdminOnly({ children }: { children: ReactNode }) {
   const { profile } = useAuth()
@@ -59,6 +62,9 @@ export default function App() {
         <Route path="hang-doi-giao" element={<ShipQueue />} />
         <Route path="quang-cao" element={<AdsPerformance />} />
         <Route path="don-van-de" element={<Issues />} />
+        <Route path="lich-lam-viec" element={<Schedule />} />
+        <Route path="chia-se" element={<Share />} />
+        <Route path="bang-tin" element={<Bulletin />} />
         <Route path="nop-bao-cao" element={<SubmitReport />} />
         <Route path="bao-cao" element={<Reports />} />
         <Route path="hieu-qua" element={<MyPerformance />} />

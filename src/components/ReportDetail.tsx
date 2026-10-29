@@ -7,9 +7,9 @@ import type { DailyReport, ReportComment, Template } from '../lib/types'
 import { ErrorText, must, useLoad } from './ui'
 
 export default function ReportDetail({ report, template }: { report: DailyReport; template?: Template }) {
-  const { profile, viewDepts, personName } = useAuth()
+  const { profile, viewDepts, manageDepts, personName } = useAuth()
   const me = profile!
-  const canComment = me.role === 'admin' || (me.role === 'leader' && report.department === me.department)
+  const canComment = manageDepts.includes(report.department)
   const [body, setBody] = useState('')
   const [err, setErr] = useState('')
   const comments = useLoad(

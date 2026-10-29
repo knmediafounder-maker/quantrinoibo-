@@ -77,10 +77,11 @@ export const PARTNER_STATUS: Record<string, string> = {
   returned_cod: 'Đã hoàn', canceled: 'Đã hủy',
 }
 
-export const FLAG_LABEL: Record<string, string> = { to_sale: 'Chuyển Sale xử lý', high_risk: 'Nguy cơ hoàn rất cao', rescued: 'Đã cứu thành công' }
-export const FLAG_COLOR: Record<string, string> = {
-  to_sale: 'bg-plum-light text-plum-dark', high_risk: 'bg-rose text-white', rescued: 'bg-sage-light text-sage-dark',
-}
+export const FLAG_LABEL: Record<string, string> = { high_risk: 'Nguy cơ hoàn rất cao' }
+export const FLAG_COLOR: Record<string, string> = { high_risk: 'bg-rose text-white' }
+/** Đơn đang chờ phòng nào xử lý */
+export const HANDOFF_LABEL: Record<string, string> = { sale: 'Chờ Sale xử lý', van_don: 'Chờ Vận đơn xử lý' }
+export const HANDOFF_COLOR: Record<string, string> = { sale: 'bg-plum-light text-plum-dark', van_don: 'bg-sky-light text-sky-dark' }
 
 export const ISSUE_KINDS = ['Khách hẹn lại', 'Không liên lạc được', 'Sai thông tin', 'Hàng lỗi', 'Bom hàng', 'Khác']
 export const ISSUE_STATUS_LABEL = { new: 'Mới', doing: 'Đang xử lý', done: 'Đã xử lý', failed: 'Không xử lý được' } as const

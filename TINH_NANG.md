@@ -1,6 +1,6 @@
 # Web quản trị nội bộ — Tóm tắt tính năng
 
-Cập nhật: 28/10/2026 · Địa chỉ: https://knmediafounder-maker.github.io/quantrinoibo-/
+Cập nhật: 29/10/2026 · Địa chỉ: https://knmediafounder-maker.github.io/quantrinoibo-/
 
 ## 1. Tổng quan
 
@@ -16,7 +16,7 @@ Cập nhật: 28/10/2026 · Địa chỉ: https://knmediafounder-maker.github.io
 | Vai trò | Quyền chính |
 | --- | --- |
 | **Admin** | Toàn quyền: kết nối POSCake / Facebook, tạo/khóa tài khoản, liên kết nhân viên với POSCake, xem toàn bộ số liệu và việc, cài đặt ngưỡng, mẫu báo cáo, cách chia đơn, chỉ số xếp hạng, xem nhật ký |
-| **Leader** | Giao việc kèm hạn chót, xác nhận hoàn thành hoặc trả lại việc, xem số liệu và báo cáo của phòng, xử lý đơn có vấn đề, chia lại đơn (Vận đơn) |
+| **Leader** | Toàn quyền với phòng mình: giao việc, xác nhận hoàn thành, nhận xét báo cáo, xếp và chốt lịch làm việc, duyệt nghỉ, xử lý đơn có vấn đề, chia lại đơn (Vận đơn). Với phòng khác, admin cho **Chỉ xem** (số liệu, báo cáo, đơn) hoặc **Toàn quyền** (như phòng mình) |
 | **Nhân viên** | Xem chỉ số và thứ hạng của mình, nhận và phản hồi việc, xử lý đơn mình phụ trách, gửi báo cáo và đơn có vấn đề |
 
 ## 3. Chỉ số chung
@@ -50,8 +50,11 @@ Cập nhật: 28/10/2026 · Địa chỉ: https://knmediafounder-maker.github.io
 | **Hiệu quả của tôi** | Toàn bộ chỉ số của phòng theo kỳ, biểu đồ theo ngày, bảng xếp hạng, **gợi ý chỉ số nên cải thiện** (chỉ số vượt ngưỡng hoặc giảm > 10% so với tháng trước, kèm cách cải thiện) | Nhân viên, leader |
 | **Dashboard phòng** | Tổng phòng, biểu đồ theo ngày, bảng từng người (số kỳ này, trong ngoặc là tháng trước), tỷ lệ việc đúng hạn, việc chưa xác nhận, ai chưa gửi báo cáo | Leader, admin |
 | **Báo cáo hằng ngày** | Số liệu trong ngày tự điền sẵn; nhân viên chỉ ghi vấn đề và đề xuất (Sale ghi thêm số data nhận để tính tỷ lệ chốt); leader nhận xét; xuất CSV | Tất cả |
+| **Lịch làm việc** | Cả tuần, 3 ca/ngày. Nhân viên đánh dấu ca muốn nghỉ của tuần tới → leader bấm "Tự xếp" (mọi ca trừ ca xin nghỉ), chỉnh từng ô, xem số người mỗi ca → **Chốt lịch** (cả phòng nhận thông báo). Sau khi chốt: gửi **đơn xin nghỉ** (ngày, ca, lý do) → leader duyệt thì tự bỏ ca khỏi lịch; sửa lịch đã chốt tự báo người bị đổi ca | Tất cả |
+| **Bảng tin** | Leader/admin đăng **khen thưởng, chúc mừng, thông báo** (kèm ảnh, ghim, hiện đến ngày); hiện thành banner chạy trên Tổng quan; mọi người bấm "Chúc mừng"; cả công ty nhận thông báo | Tất cả |
+| **Góc chia sẻ** | Viết chia sẻ, góp ý, ý tưởng, cảm ơn — gửi cả công ty, leader & ban giám đốc, ban giám đốc, hoặc riêng một người; **ẩn danh được** (cả bài và trả lời); đồng tình, trả lời; người viết xóa bài của mình, admin gỡ bài công khai | Tất cả |
 | **Thông báo** | Việc mới, hạn chót, việc chờ duyệt, đơn sắp hoàn, đơn giao thất bại, đơn chuyển qua lại giữa Sale và Vận đơn, đơn có vấn đề, chỉ số vượt ngưỡng | Tất cả |
-| **Quản trị** | **Kết nối dữ liệu** (API key POSCake, chọn cửa hàng, nguồn quảng cáo, đồng bộ ngay), liên kết nhân viên với POSCake, marketer phụ trách tài khoản quảng cáo, số ngày báo sắp hoàn, tự chia đơn; tài khoản, quyền leader, mẫu báo cáo, ngưỡng cảnh báo (thêm/xóa chỉ số tùy ý), chỉ số xếp hạng từng phòng, thống kê việc, nhật ký | Admin |
+| **Quản trị** | **Kết nối dữ liệu** (API key POSCake, chọn cửa hàng, nguồn quảng cáo, đồng bộ ngay), liên kết nhân viên với POSCake, marketer phụ trách tài khoản quảng cáo, số ngày báo sắp hoàn, tự chia đơn; tài khoản, **quyền leader theo từng phòng** (không / chỉ xem / toàn quyền), tên và giờ 3 ca làm việc, mẫu báo cáo, ngưỡng cảnh báo (thêm/xóa chỉ số tùy ý), chỉ số xếp hạng từng phòng, thống kê việc, nhật ký | Admin |
 
 ## 5. Sale
 
@@ -66,7 +69,9 @@ Cập nhật: 28/10/2026 · Địa chỉ: https://knmediafounder-maker.github.io
 | Tỷ lệ chốt | Đơn chốt ÷ số data nhận. Thấp → cần cải thiện tư vấn, chốt đơn |
 | Tỷ lệ giao thành công | Thấp → chất lượng đơn chốt chưa tốt |
 
-**Danh sách đơn** (Cần xử lý / Đang giao / Tất cả trong kỳ): đơn **sắp đến hạn hoàn** tự lên đầu (vàng khi còn ≤ N ngày, đỏ khi còn ≤ 1 ngày). Sale ghi kết quả liên hệ khách, chuyển đơn sang Vận đơn xử lý, hoặc báo đơn có vấn đề.
+**Danh sách đơn** (Cần xử lý / Đã gửi Vận đơn / Đang giao / Tất cả trong kỳ): đơn **sắp đến hạn hoàn** tự lên đầu (vàng khi còn ≤ N ngày, đỏ khi còn ≤ 1 ngày), rồi đơn Vận đơn gửi sang. **Tìm theo mã đơn / mã vận đơn** (tìm trên mọi ngày), **lọc** theo trạng thái, nhãn (sắp hoàn, nguy cơ hoàn, chờ Sale, chờ Vận đơn, hạ COD, có ghi chú), sắp xếp.
+
+**Trao đổi đơn Sale ↔ Vận đơn:** trong chi tiết đơn, bên này ghi nội dung và bấm "Gửi Vận đơn / Sale xử lý" → bên kia nhận thông báo (sale của đơn hoặc người giao phụ trách; chưa có thì leader). Bên nhận bấm **Đã xử lý xong** kèm thông tin cập nhật (người gửi được báo lại) hoặc **Đẩy lại** cho bên kia. Đơn đang chờ hiện nhãn "Chờ Sale xử lý" / "Chờ Vận đơn xử lý"; toàn bộ qua lại lưu trong lịch sử đơn.
 
 ## 6. Vận đơn
 
@@ -80,14 +85,19 @@ Cập nhật: 28/10/2026 · Địa chỉ: https://knmediafounder-maker.github.io
 | Đơn giao thành công trong ngày | Kết quả hôm nay |
 | Đơn sắp đến hạn hoàn | Đơn cần xử lý gấp |
 | Tỷ lệ giao thành công | Hiệu quả theo tháng |
+| Sale gửi cần xử lý | Yêu cầu Sale đang chờ Vận đơn |
+| **Đơn hạ COD / tổng tiền hạ COD** | Đơn khách đã nhận mà tiền thu hộ thực (đối soát với hãng, hoặc COD trên POSCake khi khách nhận) thấp hơn tiền thu hộ lúc gửi hàng; tính theo kỳ, có danh sách riêng |
 
-**Thứ tự nên xử lý:** sắp đến hạn hoàn → nguy cơ hoàn rất cao → đã giao thất bại → giá trị cao → còn lại.
+**Tab:** Đang giao / Sale gửi / Đã gửi Sale / Chưa chia / Giao xong hôm nay / Hạ COD; có tìm kiếm và lọc như bên Sale.
+
+**Thứ tự nên xử lý:** sắp đến hạn hoàn → Sale gửi sang → nguy cơ hoàn rất cao → đã giao thất bại → giá trị cao → còn lại.
 
 | Nhãn | Ý nghĩa |
 | --- | --- |
-| Chuyển Sale xử lý | Cần sale liên hệ lại khách; sale nhận thông báo và trả kết quả |
+| Chờ Sale xử lý / Chờ Vận đơn xử lý | Đơn đang trao đổi giữa hai phòng (mục 5) |
 | Nguy cơ hoàn rất cao | Đơn khả năng hoàn cao, leader được cảnh báo (tự cảnh báo khi hãng báo giao thất bại / chờ hoàn) |
-| Đã cứu thành công | Đơn từng có nguy cơ hoàn hoặc giao thất bại nhưng đã giao được (tự tính) |
+
+Đã bỏ chỉ số "đơn cứu thành công".
 
 ## 7. Marketing
 
@@ -106,7 +116,8 @@ Xem theo cả phòng hoặc từng marketer; biểu đồ chi phí đặt cạnh
 
 ## 8. Đơn có vấn đề
 
-- Ai cũng gửi được: mã đơn, loại vấn đề (khách hẹn lại, không liên lạc được, sai thông tin, hàng lỗi, bom hàng…), mô tả, ảnh, mức độ gấp, gửi đến leader / phòng / người cụ thể.
+- Ai cũng gửi được: mã đơn, loại vấn đề (khách hẹn lại, không liên lạc được, sai thông tin, hàng lỗi, bom hàng…), mô tả, ảnh, mức độ gấp.
+- **Mặc định gửi admin và leader phòng người gửi.** Gắn thẻ thêm phòng liên quan (lúc gửi hoặc sau đó): leader phòng đó nhận thông báo, nhân viên phòng đó xem và xử lý được; có thể gửi thêm một người cụ thể.
 - Trạng thái: Mới → Đang xử lý → Đã xử lý / Không xử lý được; có trao đổi trong phiếu (cập nhật tức thì).
 - Leader có thể chuyển phiếu thành việc giao cho nhân viên; thống kê vấn đề theo tháng.
 
@@ -117,7 +128,11 @@ Xem theo cả phòng hoặc từng marketer; biểu đồ chi phí đặt cạnh
 | Việc mới, chưa xác nhận sau N giờ, sắp đến hạn (24 giờ / 2 giờ), quá hạn, chờ duyệt, trao đổi mới | Người nhận / người giao |
 | Đơn đang giao còn ≤ N ngày tới hạn hoàn | Người giao phụ trách và sale của đơn |
 | Hãng báo giao thất bại / chờ hoàn | Leader Vận đơn |
-| Vận đơn chuyển đơn cho Sale, Sale trả kết quả | Sale / người giao |
+| Sale / Vận đơn gửi yêu cầu xử lý đơn, bên kia báo xong | Bên nhận / người gửi |
+| Lịch làm việc được chốt, lịch đã chốt bị sửa | Cả phòng / người bị đổi ca |
+| Đơn xin nghỉ mới, đơn được duyệt / không duyệt | Leader (leader xin nghỉ → admin) / người xin |
+| Tin mới trên bảng tin | Cả công ty |
+| Góp ý gửi riêng / gửi leader / ban giám đốc, có trả lời mới | Người nhận / người viết bài |
 | Có phiếu đơn có vấn đề, phiếu đổi trạng thái, trao đổi mới | Người nhận phiếu, người gửi |
 | Chỉ số tháng này vượt ngưỡng (1 lần/ngày sau giờ hạn báo cáo) | Nhân viên và leader |
 | Tổng đơn đang giao của phòng Vận đơn vượt ngưỡng | Leader Vận đơn và admin |
@@ -127,8 +142,8 @@ Xem theo cả phòng hoặc từng marketer; biểu đồ chi phí đặt cạnh
 
 | Việc | Cách làm |
 | --- | --- |
-| Cập nhật cơ sở dữ liệu | Lần 3: `supabase/update_3_poscake.sql` (đã chạy 28/10/2026); lần 4: `supabase/update_4_test_data.sql` |
-| Test trước khi có API | Quản trị → Kết nối dữ liệu → **Tạo dữ liệu thử** (≈450 đơn mã TEST… và quảng cáo 2 tháng); nhập API key thật sẽ tự xóa |
+| Cập nhật cơ sở dữ liệu | Lần 3: `supabase/update_3_poscake.sql`; lần 4: `supabase/update_4_test_data.sql` (đã chạy 28/10/2026); lần 5: `supabase/update_5_collab.sql` |
+| Test trước khi có API | Quản trị → Kết nối dữ liệu → **Tạo dữ liệu thử** (≈450 đơn mã TEST…, quảng cáo 2 tháng, ~10% đơn đã nhận bị hạ COD, vài đơn đang trao đổi Sale ↔ Vận đơn); nhập API key thật sẽ tự xóa |
 | Kết nối POSCake | Quản trị → Kết nối dữ liệu → dán API key → Tải danh sách → chọn cửa hàng → Đồng bộ ngay |
 | Liên kết nhân viên | Quản trị → Kết nối dữ liệu → Liên kết nhân viên với POSCake (có nút tự khớp theo email) |
 | Đồng bộ | Tự động 10 phút/lần (Edge Function `sync-poscake`); lần đầu lấy 2 tháng gần nhất |
@@ -142,6 +157,8 @@ Xem theo cả phòng hoặc từng marketer; biểu đồ chi phí đặt cạnh
 | Hạn hoàn | POSCake không có sẵn "hạn hoàn", web tính = ngày gửi hàng + số ngày admin cài (mặc định 7) |
 | Tỷ lệ chốt của Sale | POSCake không có số data/khách nhắn theo từng sale, nên lấy từ ô "số data" sale ghi trong báo cáo hằng ngày |
 | Doanh số | Dùng "tổng tiền đơn" (total_price) của POSCake |
+| Hạ COD | Tiền thu hộ lúc gửi được web ghi lại lần đầu thấy đơn ở "Đã gửi hàng" (hoặc lấy từ lịch sử sửa COD của POSCake nếu có); so với tiền đối soát với hãng / COD khi khách nhận. Cần kiểm tra lại trên dữ liệu thật sau khi kết nối |
+| Góp ý ẩn danh | Trên web không ai (kể cả admin) thấy người viết. Người có quyền vào thẳng cơ sở dữ liệu Supabase vẫn tra được — chỉ chủ tài khoản Supabase |
 | Nhiều lần báo cáo trong ngày | Chưa làm |
 | Phòng Kho, lương / KPI, Telegram | Theo lộ trình |
 | Tên miền riêng | Chờ mua tên miền |

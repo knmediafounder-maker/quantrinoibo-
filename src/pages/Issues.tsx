@@ -14,6 +14,7 @@ type Filter = 'open' | 'mine' | 'all'
 export default function Issues() {
   const { profile, deptName, personName } = useAuth()
   const me = profile!
+  const tagsOf = (i: Issue) => (i.tag_depts?.length ? i.tag_depts : i.to_dept ? [i.to_dept] : [])
   const [filter, setFilter] = useState<Filter>('open')
   const [creating, setCreating] = useState(false)
   const [params, setParams] = useSearchParams()
@@ -36,7 +37,7 @@ export default function Issues() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Đơn có vấn đề" subtitle="Gửi đơn cần xem xét đến leader hoặc phòng liên quan"
+      <PageHeader title="Đơn có vấn đề" subtitle="Phiếu luôn tới admin và leader phòng bạn; gắn thẻ thêm phòng liên quan"
         actions={<button className="btn-primary" onClick={() => setCreating(true)}><Icon name="add" /> Báo đơn có vấn đề</button>} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
@@ -45,14 +46,17 @@ export default function Issues() {
           {list.loading ? <Spinner /> : !(list.data ?? []).length ? <Empty>Không có phiếu nào</Empty> : (
             <div className="-mx-5 overflow-x-auto px-5">
               <table className="table">
-                <thead><tr><th>Mã đơn</th><th>Vấn đề</th><th>Mức độ</th><th>Gửi đến</th><th>Người gửi</th><th>Trạng thái</th><th>Lúc</th></tr></thead>
+                <thead><tr><th>Mã đơn</th><th>Vấn đề</th><th>Mức độ</th><th>Phòng gắn thẻ</th><th>Người gửi</th><th>Trạng thái</th><th>Lúc</th></tr></thead>
                 <tbody>
                   {list.data!.map((i) => (
                     <tr key={i.id} className="cursor-pointer hover:bg-cream" onClick={() => setParams({ id: i.id })}>
                       <td className="font-medium text-ink">{i.order_code}</td>
                       <td>{i.kind}<div className="max-w-[18rem] truncate text-xs text-muted">{i.description}</div></td>
                       <td><Badge className={URGENCY_COLOR[i.urgency]}>{URGENCY_LABEL[i.urgency]}</Badge></td>
-                      <td>{i.to_user ? personName(i.to_user) : `Leader ${deptName(i.to_dept)}`}</td>
+                      <td>
+                        <div className="flex flex-wrap gap-1">{tagsOf(i).map((d) => <Badge key={d} className="bg-sand/60 text-ink-soft">{deptName(d)}</Badge>)}</div>
+                        {i.to_user && <div className="mt-0.5 text-xs text-muted">+ {personName(i.to_user)}</div>}
+                      </td>
                       <td>{personName(i.created_by)}</td>
                       <td><Badge className={ISSUE_STATUS_COLOR[i.status]}>{ISSUE_STATUS_LABEL[i.status]}</Badge></td>
                       <td className="whitespace-nowrap text-xs">{fmtDateTime(i.created_at)}</td>
@@ -84,9 +88,10 @@ export default function Issues() {
 }
 
 function IssueDetail({ id, onClose }: { id: string; onClose: () => void }) {
-  const { profile, people, deptName, personName, viewDepts } = useAuth()
+  const { profile, people, departments, deptName, personName, viewDepts, manageDepts } = useAuth()
   const me = profile!
   const [body, setBody] = useState('')
+  const [addTag, setAddTag] = useState('')
   const [err, setErr] = useState('')
   const [assignees, setAssignees] = useState<string[]>([])
   const [due, setDue] = useState('')
@@ -111,9 +116,19 @@ function IssueDetail({ id, onClose }: { id: string; onClose: () => void }) {
   if (loading && !data) return <Modal open onClose={onClose} title="Phiếu đơn có vấn đề"><Spinner /></Modal>
   const i = data?.issue
   if (!i) return <Modal open onClose={onClose} title="Phiếu đơn có vấn đề"><Empty>Không tìm thấy phiếu</Empty></Modal>
-  const canHandle = me.role === 'admin' || i.to_user === me.id || i.handled_by === me.id || (me.role === 'leader' && !!i.to_dept && viewDepts.includes(i.to_dept))
+  const tags = i.tag_depts?.length ? i.tag_depts : i.to_dept ? [i.to_dept] : []
+  const creatorDept = people.find((p) => p.id === i.created_by)?.department ?? ''
+  const canHandle = me.role === 'admin' || i.to_user === me.id || i.handled_by === me.id || tags.includes(me.department ?? '')
+    || (me.role === 'leader' && (viewDepts.includes(creatorDept) || tags.some((d) => viewDepts.includes(d))))
   const isManager = me.role === 'admin' || (me.role === 'leader' && canHandle)
-  const staffOf = people.filter((p) => p.is_active && p.role !== 'admin' && (me.role === 'admin' || p.department === me.department))
+  const staffOf = people.filter((p) => p.is_active && p.role !== 'admin' && manageDepts.includes(p.department ?? ''))
+  async function tag() {
+    if (!addTag) return
+    const { error } = await supabase.rpc('tag_issue', { p_issue: id, p_tag_depts: [addTag] })
+    if (error) return setErr(errMsg(error))
+    setAddTag('')
+    reload()
+  }
 
   async function send() {
     const { error } = await supabase.from('issue_comments').insert({ issue_id: id, user_id: me.id, body: body.trim() })
@@ -142,9 +157,22 @@ function IssueDetail({ id, onClose }: { id: string; onClose: () => void }) {
           <Badge className={ISSUE_STATUS_COLOR[i.status]}>{ISSUE_STATUS_LABEL[i.status]}</Badge>
           <Badge className={URGENCY_COLOR[i.urgency]}>{URGENCY_LABEL[i.urgency]}</Badge>
           <span className="text-muted">
-            {personName(i.created_by)} gửi {i.to_user ? personName(i.to_user) : `leader ${deptName(i.to_dept)}`} · {fmtDateTime(i.created_at)}
+            {personName(i.created_by)} gửi admin, leader{creatorDept ? ' ' + deptName(creatorDept) : ''}{i.to_user ? `, ${personName(i.to_user)}` : ''} · {fmtDateTime(i.created_at)}
           </span>
           {i.task_id && <Link to={`/viec/${i.task_id}`} className="ml-auto text-sm text-sky-dark hover:underline">Xem việc đã giao →</Link>}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-sm">
+          <span className="text-muted">Phòng gắn thẻ:</span>
+          {tags.length ? tags.map((d) => <Badge key={d} className="bg-sand/60 text-ink-soft">{deptName(d)}</Badge>) : <span className="text-muted">—</span>}
+          {departments.some((d) => !tags.includes(d.code)) && (
+            <span className="ml-auto flex items-center gap-2">
+              <select className="input w-40" value={addTag} onChange={(e) => setAddTag(e.target.value)}>
+                <option value="">Gắn thêm phòng…</option>
+                {departments.filter((d) => !tags.includes(d.code)).map((d) => <option key={d.code} value={d.code}>{d.name}</option>)}
+              </select>
+              <button className="btn-secondary" disabled={!addTag} onClick={tag}>Gắn</button>
+            </span>
+          )}
         </div>
         {i.description && <p className="whitespace-pre-wrap rounded-lg bg-cream px-3 py-2 text-sm">{i.description}</p>}
         {!!data.files.length && (

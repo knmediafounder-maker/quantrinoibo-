@@ -73,7 +73,7 @@ export default function Integration() {
   async function demo(action: 'seed' | 'clear') {
     if (action === 'clear' && !confirm('Xóa toàn bộ đơn hàng và quảng cáo thử?')) return
     setBusy('demo'); setErr(''); setMsg('')
-    const { data, error } = await supabase.rpc('demo_data', { p_action: action })
+    const { data, error } = await supabase.rpc('demo_data_v2', { p_action: action })
     setBusy('')
     if (error) return setErr(errMsg(error))
     const r = data as { orders?: number; ads?: number; sellers?: number; marketers?: number; shippers?: number }

@@ -9,6 +9,7 @@ import type { Notification, Order, Task, Threshold } from '../lib/types'
 import { Avatar, Badge, Card, Icon, Progress, Spinner, Stat, must, useLoad } from '../components/ui'
 import { KpiGrid, PeriodPicker, loadCompany, loadCompanyDaily, loadDaily, loadPeople, rangeLabel, usePeriod } from '../components/Kpi'
 import { DueBadge, OrderModal, byKeys, isRisky, orderCode, shipPriority } from '../components/Orders'
+import { Banner } from './Bulletin'
 
 function greeting() {
   const h = vn().hour()
@@ -58,8 +59,11 @@ export default function Home() {
         .order('created_at', { ascending: false }).limit(8)),
       must(supabase.from('thresholds').select('*').eq('active', true)),
       must(oq.order('sent_at', { ascending: true }).limit(500)),
+      // Đơn phòng kia gửi sang, đang chờ mình xử lý
       dept === 'sale' && me.pos_user_id
-        ? must(supabase.from('orders').select('*').eq('seller_pos_id', me.pos_user_id).contains('flags', ['to_sale']).limit(50))
+        ? must(supabase.from('orders').select('*').eq('seller_pos_id', me.pos_user_id).eq('handoff_to', 'sale').limit(50))
+        : dept === 'van_don' && hasOwn
+        ? must(supabase.from('orders').select('*').eq('shipper_id', me.id).eq('handoff_to', 'van_don').limit(50))
         : Promise.resolve([]),
     ])
     return { tasks: tasks as Task[], danger: danger as Notification[], th: th as Threshold[], orders: orders as Order[], toSale: toSale as Order[] }
@@ -75,10 +79,11 @@ export default function Home() {
   const toReview = data.tasks.filter((t) => t.status === 'review' && (t.created_by === me.id || me.role === 'admin'))
   const needDiscuss = data.tasks.filter((t) => t.status !== 'done' && t.created_by === me.id && t.task_assignees?.some((a) => a.ack === 'need_discuss'))
 
-  // Đơn cần xử lý ngay: Vận đơn chuyển sang, sắp đến hạn hoàn, nguy cơ hoàn cao
-  const prio = (o: Order) => [o.flags.includes('to_sale') ? 0 : 1, ...shipPriority(o, after, warn)]
+  // Đơn cần xử lý ngay: phòng kia gửi sang, sắp đến hạn hoàn, nguy cơ hoàn cao
+  const waiting = (o: Order) => !!o.handoff_to && o.handoff_to === dept
+  const prio = (o: Order) => [waiting(o) ? 0 : 1, ...shipPriority(o, after, warn)]
   const urgent = [...data.toSale, ...data.orders.filter((o) => !data.toSale.some((x) => x.id === o.id))]
-    .filter((o) => o.flags.includes('to_sale') || isRisky(o) || (daysLeft(o.sent_at, o.status, after) ?? 99) <= warn)
+    .filter((o) => waiting(o) || isRisky(o) || (daysLeft(o.sent_at, o.status, after) ?? 99) <= warn)
     .sort((a, b) => byKeys(prio(a), prio(b)))
   const ordersLink = dept === 'van_don' || (!hasOwn && viewDepts.includes('van_don')) ? '/hang-doi-giao'
     : dept === 'sale' ? '/don-cua-toi' : '/don-van-de'
@@ -108,6 +113,8 @@ export default function Home() {
         </div>
         <PeriodPicker value={range} onChange={setRange} />
       </div>
+
+      <Banner />
 
       {isManager && (
         <section>
@@ -177,9 +184,9 @@ export default function Home() {
                       <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-sand text-base text-ink-soft"><Icon name="package_2" /></span>
                       <span className="min-w-0 flex-1">
                         <span className="block truncate text-ink">Đơn {orderCode(o)} · {fmtVND(o.total_price)}</span>
-                        <span className="block truncate text-xs text-muted">{o.last_note ?? (o.flags.includes('to_sale') ? 'Vận đơn chuyển sang' : 'Đang giao')}</span>
+                        <span className="block truncate text-xs text-muted">{o.last_note ?? 'Đang giao'}</span>
                       </span>
-                      {o.flags.includes('to_sale') ? <Badge className="bg-plum-light text-plum-dark">Chuyển Sale</Badge>
+                      {waiting(o) ? <Badge className="bg-plum-light text-plum-dark">{dept === 'sale' ? 'Vận đơn gửi' : 'Sale gửi'}</Badge>
                         : (left ?? 99) <= warn ? <DueBadge left={left} warn={warn} />
                         : <Badge className="bg-rose-light text-rose-dark">Nguy cơ hoàn</Badge>}
                     </button>

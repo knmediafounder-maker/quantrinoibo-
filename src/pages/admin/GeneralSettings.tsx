@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../../lib/auth'
 import { supabase, errMsg } from '../../lib/supabase'
-import type { DeptSettings } from '../../lib/types'
+import type { DeptSettings, Shift } from '../../lib/types'
+import { DEFAULT_SHIFTS } from '../Schedule'
 import { METRICS, THRESHOLD_METRICS } from '../../lib/kpi'
 import { Card, ErrorText, Field, Tabs } from '../../components/ui'
 
@@ -10,6 +11,8 @@ export default function GeneralSettings() {
   const [company, setCompany] = useState(settings?.company_name ?? '')
   const [dept, setDept] = useState(departments[0]?.code ?? 'sale')
   const [s, setS] = useState<DeptSettings>(deptSetting(dept))
+  const [shifts, setShifts] = useState<Shift[]>(settings?.shifts?.length ? settings.shifts : DEFAULT_SHIFTS)
+  const [shiftMsg, setShiftMsg] = useState('')
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -19,6 +22,14 @@ export default function GeneralSettings() {
     const { error } = await supabase.from('settings').update({ company_name: company, updated_at: new Date().toISOString() }).eq('id', 1)
     if (error) return setError(errMsg(error))
     setError('')
+    reload()
+  }
+
+  async function saveShifts() {
+    const { error } = await supabase.from('settings').update({ shifts, updated_at: new Date().toISOString() }).eq('id', 1)
+    if (error) return setError(errMsg(error))
+    setError('')
+    setShiftMsg('Đã lưu ca làm việc')
     reload()
   }
 
@@ -36,6 +47,22 @@ export default function GeneralSettings() {
         <div className="flex items-end gap-3">
           <div className="flex-1"><Field label="Tên công ty (hiển thị trên thanh bên)"><input className="input" value={company} onChange={(e) => setCompany(e.target.value)} /></Field></div>
           <button className="btn-primary" onClick={saveCompany}>Lưu</button>
+        </div>
+      </Card>
+
+      <Card title="Ca làm việc" actions={<span>Áp dụng cho lịch làm việc mọi phòng</span>}>
+        <div className="space-y-3">
+          {shifts.map((s, i) => (
+            <div key={i} className="grid grid-cols-3 gap-3">
+              <Field label={`Ca ${i + 1}`}><input className="input" value={s.name} onChange={(e) => setShifts(shifts.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} /></Field>
+              <Field label="Bắt đầu"><input className="input" type="time" value={s.start} onChange={(e) => setShifts(shifts.map((x, j) => (j === i ? { ...x, start: e.target.value } : x)))} /></Field>
+              <Field label="Kết thúc"><input className="input" type="time" value={s.end} onChange={(e) => setShifts(shifts.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} /></Field>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center gap-3">
+          <button className="btn-primary" onClick={saveShifts}>Lưu ca làm việc</button>
+          {shiftMsg && <span className="text-sm text-sage-dark">{shiftMsg}</span>}
         </div>
       </Card>
 

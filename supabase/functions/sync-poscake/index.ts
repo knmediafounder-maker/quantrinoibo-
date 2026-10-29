@@ -63,9 +63,20 @@ function statusTime(o: any, statuses: number[], first = false): string | null {
   return first ? ts[0] : ts[ts.length - 1]
 }
 
+/** Tiền thu hộ lúc gửi hàng: giá trị cũ của lần sửa COD đầu tiên sau khi gửi (nếu POSCake có lịch sử sửa) */
+function codAtSend(o: any, sentAt: string | null): number | null {
+  const hs = (o.histories ?? [])
+    .filter((h: any) => h && typeof h.cod === 'object' && h.cod && 'old' in h.cod && h.updated_at && (!sentAt || iso(h.updated_at)! >= sentAt))
+    .sort((a: any, b: any) => String(a.updated_at).localeCompare(String(b.updated_at)))
+  const v = hs.length ? Number(hs[0].cod.old) : NaN
+  return isFinite(v) ? v : null
+}
+
 function mapOrder(o: any) {
   const inserted = iso(o.inserted_at)!
   const status = Number(o.status)
+  const sentAt = iso(o.time_send_partner) ?? statusTime(o, [2], true) ?? iso(o.partner?.picked_up_at)
+  const cod = o.cod != null ? Number(o.cod) || 0 : null
   return {
     id: Number(o.id),
     display_id: o.display_id != null ? String(o.display_id) : null,
@@ -82,11 +93,16 @@ function mapOrder(o: any) {
     partner_name: o.partner?.partner_name ?? null,
     partner_status: o.partner?.partner_status ?? null,
     tracking_code: o.partner?.extend_code ?? null,
-    sent_at: iso(o.time_send_partner) ?? statusTime(o, [2], true) ?? iso(o.partner?.picked_up_at),
+    sent_at: sentAt,
     delivered_at: [3, 16].includes(status) ? statusTime(o, [3, 16], true) ?? iso(o.last_update_status_at) : null,
     returned_at: [4, 15, 5].includes(status) ? statusTime(o, [4, 15, 5], true) ?? iso(o.last_update_status_at) : null,
     first_undeliverable_at: iso(o.partner?.first_undeliverable_at),
     count_of_delivery: Number(o.partner?.count_of_delivery ?? 0) || 0,
+    // Hạ COD: so tiền thu hộ lúc gửi với tiền đối soát / tiền thu hộ khi khách nhận.
+    // cod_sent chỉ ghi lần đầu (máy chủ giữ giá trị cũ khi đã có)
+    cod,
+    partner_cod: o.partner?.cod != null ? Number(o.partner.cod) || 0 : null,
+    cod_sent: codAtSend(o, sentAt) ?? ([2, 3, 16, 4, 15, 5].includes(status) ? cod : null),
     synced_at: new Date().toISOString(),
   }
 }
