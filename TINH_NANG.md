@@ -50,11 +50,11 @@ Cập nhật: 29/10/2026 · Địa chỉ: https://knmediafounder-maker.github.io
 | **Hiệu quả của tôi** | Toàn bộ chỉ số của phòng theo kỳ, biểu đồ theo ngày, bảng xếp hạng, **gợi ý chỉ số nên cải thiện** (chỉ số vượt ngưỡng hoặc giảm > 10% so với tháng trước, kèm cách cải thiện) | Nhân viên, leader |
 | **Dashboard phòng** | Tổng phòng, biểu đồ theo ngày, bảng từng người (số kỳ này, trong ngoặc là tháng trước), tỷ lệ việc đúng hạn, việc chưa xác nhận, ai chưa gửi báo cáo | Leader, admin |
 | **Báo cáo hằng ngày** | Số liệu trong ngày tự điền sẵn; nhân viên chỉ ghi vấn đề và đề xuất (Sale ghi thêm số data nhận để tính tỷ lệ chốt); leader nhận xét; xuất CSV | Tất cả |
-| **Lịch làm việc** | Cả tuần, 3 ca/ngày. Nhân viên đánh dấu ca muốn nghỉ của tuần tới → leader bấm "Tự xếp" (mọi ca trừ ca xin nghỉ), chỉnh từng ô, xem số người mỗi ca → **Chốt lịch** (cả phòng nhận thông báo). Sau khi chốt: gửi **đơn xin nghỉ** (ngày, ca, lý do) → leader duyệt thì tự bỏ ca khỏi lịch; sửa lịch đã chốt tự báo người bị đổi ca | Tất cả |
+| **Lịch làm việc** | Cả tuần, 3 ca/ngày. ① Nhân viên tích các ca **muốn nghỉ** của tuần sau, bấm **Gửi đăng ký** trước **11:00 Chủ nhật** (sửa và gửi lại được trước hạn; sáng CN tự nhắc người chưa gửi). ② Leader thấy ai đã gửi / chưa gửi, bấm "Tự xếp" (mọi ca trừ ca xin nghỉ), bấm tên từng người để chọn ngày/ca làm của người đó, xem số người mỗi ca → **Chốt lịch** (cả phòng nhận thông báo). ③ Leader **sửa tự do đến 24:00 Chủ nhật**; sau đó mọi thay đổi **bắt buộc ghi chú** và hiện trong mục "Thay đổi lịch sau khi chốt" + ô lịch được đánh dấu. ④ **Xin nghỉ**: tích ô ngày + ca, ghi lý do → leader xem từng ca, chọn **người bù** và duyệt (ca tự bỏ khỏi lịch, người bù được thêm và báo) | Tất cả |
 | **Bảng tin** | Leader/admin đăng **khen thưởng, chúc mừng, thông báo** (kèm ảnh, ghim, hiện đến ngày); hiện thành banner chạy trên Tổng quan; mọi người bấm "Chúc mừng"; cả công ty nhận thông báo | Tất cả |
 | **Góc chia sẻ** | Viết chia sẻ, góp ý, ý tưởng, cảm ơn — gửi cả công ty, leader & ban giám đốc, ban giám đốc, hoặc riêng một người; **ẩn danh được** (cả bài và trả lời); đồng tình, trả lời; người viết xóa bài của mình, admin gỡ bài công khai | Tất cả |
 | **Thông báo** | Việc mới, hạn chót, việc chờ duyệt, đơn sắp hoàn, đơn giao thất bại, đơn chuyển qua lại giữa Sale và Vận đơn, đơn có vấn đề, chỉ số vượt ngưỡng | Tất cả |
-| **Quản trị** | **Kết nối dữ liệu** (API key POSCake, chọn cửa hàng, nguồn quảng cáo, đồng bộ ngay), liên kết nhân viên với POSCake, marketer phụ trách tài khoản quảng cáo, số ngày báo sắp hoàn, tự chia đơn; tài khoản, **quyền leader theo từng phòng** (không / chỉ xem / toàn quyền), tên và giờ 3 ca làm việc, mẫu báo cáo, ngưỡng cảnh báo (thêm/xóa chỉ số tùy ý), chỉ số xếp hạng từng phòng, thống kê việc, nhật ký | Admin |
+| **Quản trị** | **Kết nối dữ liệu** (API key POSCake, chọn cửa hàng, nguồn quảng cáo, đồng bộ ngay), liên kết nhân viên với POSCake, marketer phụ trách tài khoản quảng cáo, số ngày báo sắp hoàn, tự chia đơn; tài khoản, **quyền leader theo từng phòng** (không / chỉ xem / toàn quyền), tên và giờ 3 ca làm việc, giờ hạn đăng ký lịch, mẫu báo cáo, ngưỡng cảnh báo (thêm/xóa chỉ số tùy ý), chỉ số xếp hạng từng phòng, thống kê việc, nhật ký | Admin |
 
 ## 5. Sale
 
@@ -130,7 +130,8 @@ Xem theo cả phòng hoặc từng marketer; biểu đồ chi phí đặt cạnh
 | Hãng báo giao thất bại / chờ hoàn | Leader Vận đơn |
 | Sale / Vận đơn gửi yêu cầu xử lý đơn, bên kia báo xong | Bên nhận / người gửi |
 | Lịch làm việc được chốt, lịch đã chốt bị sửa | Cả phòng / người bị đổi ca |
-| Đơn xin nghỉ mới, đơn được duyệt / không duyệt | Leader (leader xin nghỉ → admin) / người xin |
+| Đơn xin nghỉ mới, đơn được duyệt / không duyệt, được xếp bù ca | Leader (leader xin nghỉ → admin) / người xin / người bù |
+| Sáng Chủ nhật chưa gửi đăng ký lịch; quá hạn đăng ký | Nhân viên chưa gửi / leader (số người đã gửi) |
 | Tin mới trên bảng tin | Cả công ty |
 | Góp ý gửi riêng / gửi leader / ban giám đốc, có trả lời mới | Người nhận / người viết bài |
 | Có phiếu đơn có vấn đề, phiếu đổi trạng thái, trao đổi mới | Người nhận phiếu, người gửi |
@@ -142,7 +143,7 @@ Xem theo cả phòng hoặc từng marketer; biểu đồ chi phí đặt cạnh
 
 | Việc | Cách làm |
 | --- | --- |
-| Cập nhật cơ sở dữ liệu | Lần 3: `supabase/update_3_poscake.sql`; lần 4: `supabase/update_4_test_data.sql` (đã chạy 28/10/2026); lần 5: `supabase/update_5_collab.sql` |
+| Cập nhật cơ sở dữ liệu | Lần 3: `supabase/update_3_poscake.sql`; lần 4: `supabase/update_4_test_data.sql` (đã chạy 28/10/2026); lần 5: `supabase/update_5_collab.sql` (đã chạy 29/10/2026); lần 6: `supabase/update_6_schedule.sql` |
 | Test trước khi có API | Quản trị → Kết nối dữ liệu → **Tạo dữ liệu thử** (≈450 đơn mã TEST…, quảng cáo 2 tháng, ~10% đơn đã nhận bị hạ COD, vài đơn đang trao đổi Sale ↔ Vận đơn); nhập API key thật sẽ tự xóa |
 | Kết nối POSCake | Quản trị → Kết nối dữ liệu → dán API key → Tải danh sách → chọn cửa hàng → Đồng bộ ngay |
 | Liên kết nhân viên | Quản trị → Kết nối dữ liệu → Liên kết nhân viên với POSCake (có nút tự khớp theo email) |

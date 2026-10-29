@@ -75,6 +75,8 @@ export interface Settings {
   return_warn_days: number
   auto_assign_shipping: boolean
   shifts: Shift[]
+  /** Giờ hạn gửi đăng ký lịch (Chủ nhật trước tuần làm) */
+  schedule_reg_time: string
 }
 
 export interface Shift { name: string; start: string; end: string }
@@ -222,6 +224,8 @@ export interface LeaveRequest {
   day_from: string
   day_to: string
   shifts: number[]
+  /** Các ô xin nghỉ: ngày + ca */
+  slots: { d: string; s: number }[]
   reason: string
   status: 'pending' | 'approved' | 'rejected' | 'cancelled'
   reviewed_by: string | null
@@ -229,3 +233,5 @@ export interface LeaveRequest {
   review_note: string | null
   created_at: string
 }
+export interface ScheduleSubmission { department: string; week_start: string; user_id: string; note: string; submitted_at: string }
+export interface ShiftChange { id: string; department: string; day: string; shift: number; user_id: string; action: 'add' | 'remove'; note: string; changed_by: string | null; changed_at: string }

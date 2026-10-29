@@ -12,6 +12,7 @@ export default function GeneralSettings() {
   const [dept, setDept] = useState(departments[0]?.code ?? 'sale')
   const [s, setS] = useState<DeptSettings>(deptSetting(dept))
   const [shifts, setShifts] = useState<Shift[]>(settings?.shifts?.length ? settings.shifts : DEFAULT_SHIFTS)
+  const [regTime, setRegTime] = useState((settings?.schedule_reg_time ?? '11:00').slice(0, 5))
   const [shiftMsg, setShiftMsg] = useState('')
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')
@@ -26,7 +27,7 @@ export default function GeneralSettings() {
   }
 
   async function saveShifts() {
-    const { error } = await supabase.from('settings').update({ shifts, updated_at: new Date().toISOString() }).eq('id', 1)
+    const { error } = await supabase.from('settings').update({ shifts, schedule_reg_time: regTime, updated_at: new Date().toISOString() }).eq('id', 1)
     if (error) return setError(errMsg(error))
     setError('')
     setShiftMsg('Đã lưu ca làm việc')
@@ -59,6 +60,11 @@ export default function GeneralSettings() {
               <Field label="Kết thúc"><input className="input" type="time" value={s.end} onChange={(e) => setShifts(shifts.map((x, j) => (j === i ? { ...x, end: e.target.value } : x)))} /></Field>
             </div>
           ))}
+        </div>
+        <div className="mt-3 max-w-xs">
+          <Field label="Hạn gửi đăng ký lịch (Chủ nhật trước tuần làm)" hint="Leader sửa tự do đến 24:00 Chủ nhật; sau đó thay đổi phải ghi chú">
+            <input className="input" type="time" value={regTime} onChange={(e) => setRegTime(e.target.value)} />
+          </Field>
         </div>
         <div className="mt-4 flex items-center gap-3">
           <button className="btn-primary" onClick={saveShifts}>Lưu ca làm việc</button>
