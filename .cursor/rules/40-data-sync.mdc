@@ -1,0 +1,121 @@
+---
+description: Quy tắc Data & đồng bộ - Pancake polling, webhook, idempotency, assignment, đối soát COD, Facebook Ads, AI Order Agent, dữ liệu nhạy cảm
+globs: src/lib/pos-*.ts,src/lib/pancake*.ts,src/lib/assignment/**,src/lib/webhook-verify.ts,src/lib/meta/**,src/app/api/cron/**,src/app/api/webhooks/**,src/app/(dashboard)/vankho/**,docs/**
+alwaysApply: false
+---
+
+# DATA & SYNC RULES
+
+> Bổ sung cho CLAUDE.md. Tập trung vào tính **toàn vẹn dữ liệu**, **idempotent**, **không mất/không trùng**.
+
+## 1. Nguyên tắc dữ liệu
+- **Nguồn sự thật**: Pancake là nguồn của đơn; hệ thống nội bộ giữ bản sao + dữ liệu bổ sung (tag, gán nhân viên, trạng thái nội bộ). Không ghi đè dữ liệu nội bộ bằng dữ liệu Pancake một cách mù quáng — định nghĩa rõ **trường nào do ai sở hữu**.
+- Mọi bước đồng bộ phải **idempotent**: chạy lại N lần cho cùng một input → kết quả như chạy một lần.
+- Mọi bước phải **chịu được chạy chồng** (advisory lock) và **chịu được gián đoạn giữa chừng** (checkpoint, upsert).
+- Không mất dữ liệu âm thầm: mọi bản ghi bị bỏ qua/lỗi phải được đếm và ghi log (không kèm PII đầy đủ).
+- **Tiền** là số nguyên (VND, đơn vị đồng) hoặc `numeric`; không float. Tính toán tiền ở server; làm tròn có quy tắc rõ ràng, ghi chú trong code.
+- **Thời gian**: lưu UTC `timestamptz`; hiển thị theo múi giờ Việt Nam. Cẩn thận ranh giới ngày khi đối soát hằng ngày (dùng múi giờ cố định, không dùng giờ máy chủ).
+
+## 2. Pancake polling (đường đồng bộ chính)
+Hai tầng độc lập, mỗi tầng có **advisory lock + checkpoint riêng**:
+
+| Tầng | Lịch | Phạm vi | Cách lấy |
+|---|---|---|---|
+| `pos-poll-new` | `*/2 * * * *` | NEW / CONFIRMED | Phân trang 100, theo checkpoint |
+| `pos-poll-old` | `*/5` (theo `vercel.json`) | IN_TRANSIT / RETURNING | Query DB lấy danh sách → GET từng order → chunk song song |
+| `pos-sync-returned` | theo cấu hình | đơn hoàn | đồng bộ đơn đã hoàn |
+| `pos-sync-reconciliations` | hằng ngày | COD | đối soát |
+
+Quy tắc:
+- Đọc Pancake **chỉ** qua `pancake-api.client.ts` + `withRateLimit(shopId, fn)`. Tích hợp **100% read-only**.
+- Phân trang: lặp đến hết hoặc đến checkpoint; **không** tin `total` tuyệt đối; xử lý trang rỗng/ngắn.
+- Checkpoint chỉ tiến lên **sau khi** lô được lưu thành công. Lỗi giữa chừng → lần sau chạy lại từ checkpoint cũ (an toàn nhờ upsert).
+- Lưu bằng `upsert ... on conflict (shop_id, pancake_order_id)`; không `insert` rồi bắt lỗi trùng.
+- Chỉ ghi đè trường có thay đổi thật (so `updated_at`/hash) để giảm ghi thừa và tránh kích hoạt trigger/realtime vô ích.
+- Song song có giới hạn (concurrency cap theo shop), tôn trọng circuit breaker. Circuit mở → dừng lô, không retry dồn.
+- Đơn biến mất khỏi danh sách filter (đổi trạng thái) **không** nghĩa là bị xóa: không xóa mềm/xóa cứng chỉ vì không còn thấy ở một tầng. `pos-poll-old` phụ trách các đơn đã rời NEW/CONFIRMED.
+- Đổi lịch/ngưỡng: sửa `vercel.json` + tài liệu; kiểm tra khoảng chạy không vượt thời gian giữ lock và không bỏ sót đơn giữa hai tầng.
+
+## 3. Webhook inbound (không phải đường chính, nhưng phải an toàn)
+- Luồng: raw body → verify HMAC constant-time → (IP allowlist) → Zod → `fn_claim_webhook_event(provider, event_id)` → xử lý → `fn_complete_webhook_event`; lỗi tạm thời → `fn_release_webhook_event` để cho phép retry.
+- `pos_webhook_inbox` unique `(provider, event_id)` là **cơ chế idempotency duy nhất** trên prod. `lib/idempotency.ts` (in-memory) chỉ fallback dev.
+- Webhook đến **không được** ghi đè trạng thái mới hơn bằng dữ liệu cũ: so thời điểm/`updated_at` trước khi áp dụng (xử lý sự kiện đến sai thứ tự).
+- Giữ payload thô (đã giới hạn kích thước) trong inbox để điều tra; đặt **retention** và dọn theo lô.
+
+## 4. Trạng thái, tag, cascade
+- **Terminal status**: nguồn duy nhất `pos_internal_status_config.is_terminal`; truy cập qua `lib/pos-status-config` hoặc `assignment/terminal-status.ts`. Không hardcode danh sách ở bất kỳ đâu (kể cả SQL view — nếu view cần, join bảng config).
+- **Tag cascade** (vd. "khách từ chối → tự chuyển Returned"): chạy **server-side** trong `pos-tag-rules.ts`.
+  - Phải **idempotent** (áp dụng lại không đổi kết quả), **chống vòng lặp** (giới hạn độ sâu/tập đã thăm), tôn trọng **order-lock** (đơn đang bị khóa không bị cascade ghi đè).
+  - Mọi chuyển trạng thái do cascade ghi `logAudit()` kèm lý do (tag nào kích hoạt).
+- Thay đổi cấu hình trạng thái/tag bởi ADMIN (`/vankho/setting`): ảnh hưởng toàn hệ thống → audit + cân nhắc tác động tới đơn đang xử lý và các view `pos_assignment_*`.
+
+## 5. Auto-assign (`src/lib/assignment`)
+- 7 chiến lược: `no_distribution, specific_staff, round_robin, random, least_workload, highest_success_rate, weighted_ratio`.
+- **Staff pool eligibility** (ai đủ điều kiện nhận đơn: đang hoạt động, đúng role/ca, trong nhóm) lọc **trước** khi áp dụng chiến lược.
+- **Nguyên tử**: gán đơn trong một transaction/RPC có **advisory lock** → hai tiến trình không gán trùng một đơn, không gán một đơn cho hai người, không bỏ sót.
+- Chỉ gán đơn **chưa terminal** (hỏi qua `terminal-status.ts`) và chưa bị khóa.
+- `round_robin`/`weighted_ratio` cần con trỏ/bộ đếm **lưu bền** (DB), không giữ trong bộ nhớ process (serverless sẽ mất).
+- `random` dùng nguồn ngẫu nhiên phù hợp; test có thể inject seed.
+- `least_workload`/`highest_success_rate`: dùng cache hiệu năng/khối lượng có **TTL rõ ràng** và cách vô hiệu hóa khi gán/hoàn tất đơn; chấp nhận số liệu hơi cũ nhưng ghi chú.
+- Mỗi chiến lược có test: phân phối đúng, pool rỗng (đơn rơi vào `staff_unassigned`), nhân viên bị vô hiệu giữa chừng, **race 2 tiến trình đồng thời**.
+- Mọi lần gán/đổi người xử lý → `logAudit()`.
+
+## 6. Attention flags & đối soát COD
+- 9 flags: `undelivered, waiting_return, returning, returned, delivery_delay, cod_unreconciled, sla_breach, pickup_late, staff_unassigned`. Định nghĩa (màu/severity/label) ở `attention-constants.ts`.
+- Cách **tính** flag đặt ở một chỗ (hàm thuần, test được) hoặc view DB — không nhân bản logic giữa client/server/view. Nếu có cả hai, phải có test đảm bảo khớp nhau.
+- Ngưỡng thời gian (SLA, trễ giao, lấy hàng trễ) là **cấu hình**, không số cứng rải rác; tính theo giờ làm việc/múi giờ rõ ràng nếu nghiệp vụ yêu cầu.
+- **Đối soát COD**: so khớp theo khóa rõ ràng (mã vận đơn/đơn), số tiền là số nguyên; trạng thái đối soát chuyển một chiều có kiểm soát; chênh lệch được ghi nhận (không tự sửa số tiền âm thầm); mỗi thay đổi → `logAudit()`. Chạy lại phải an toàn (idempotent).
+
+## 7. J&T Express
+- Tách `client / signer / mapper / parser`. Parser nhận dữ liệu thô → `unknown` → Zod → kiểu nội bộ; mapper chuyển định dạng hai chiều có test.
+- Webhook J&T: HMAC + IP allowlist (hỗ trợ CIDR) + idempotency DB. Tracking/label PDF: lưu Storage private, signed URL ngắn hạn.
+- Không log payload chứa sđt/địa chỉ đầy đủ; khóa ký chỉ ở env server.
+
+## 8. Facebook Ads
+- Sync campaign, daily stats, ROAS theo **upsert** khóa `(account, campaign, ngày)`; số liệu có thể bị Facebook điều chỉnh về sau → sync lại cửa sổ N ngày gần nhất (attribution window), không chỉ ngày hôm nay.
+- Token hệ thống/VIA **mã hóa** (AES) ở DB; giải mã chỉ ở server, đúng lúc cần; không log, không trả ra client.
+- Xử lý token hết hạn/bị thu hồi: đánh dấu trạng thái, thông báo admin, không retry vô hạn. Tôn trọng rate limit Graph API (backoff).
+- ROAS = doanh thu / chi tiêu: xử lý chia cho 0, đơn vị tiền tệ/múi giờ tài khoản quảng cáo khác múi giờ hệ thống.
+
+## 9. AI Order Agent & mọi tính năng LLM ghi dữ liệu
+Hướng đã chốt: **"LLM as parser", không phải "LLM as agent"** (`docs/AI_ORDER_AGENT_FEASIBILITY.md`).
+
+Pipeline deterministic:
+1. Tra cứu dữ liệu thật (orders, customers, variations, partners, warehouses).
+2. LLM **chỉ** chuẩn hóa ghi chú tiếng Việt → JSON theo **Zod schema**.
+3. Validate tồn kho; **tính lại giá từ giá thật** của hệ thống. **LLM không bao giờ đặt giá/tiền/chiết khấu.**
+4. Lưu **draft** `PENDING_REVIEW`.
+5. Nhân viên **duyệt** (human-in-the-loop).
+6. Sau duyệt mới POST/PUT sang Pancake, **idempotency key = hash(shop + sđt + SKU + qty + ngày)**, `pos_orders.source = "ai_agent"`.
+
+Ràng buộc thêm:
+- Output LLM là **input không đáng tin**: parse Zod, sai schema → từ chối (không "sửa" tùy tiện), không dùng để sinh SQL/shell, không render HTML thô.
+- **Prompt injection**: ghi chú khách là *dữ liệu*, không phải *chỉ dẫn*; tách rõ trong prompt; LLM không có công cụ ghi trực tiếp.
+- Khớp SKU/biến thể: **chỉ** chấp nhận khớp chắc chắn với danh mục thật; mơ hồ → đánh dấu cần người xem, không đoán.
+- Sđt/địa chỉ: chuẩn hóa + validate định dạng; không gửi PII không cần thiết vào prompt; có giới hạn token/chi phí/tần suất theo người dùng.
+- Draft lưu: nội dung gốc, JSON đã parse, kết quả validate, người duyệt, thời điểm → `logAudit()`.
+- Đây là **ngoại lệ duy nhất** của quy tắc "Pancake read-only": mở đúng đường ghi này, qua `withRateLimit`, sau khi có thiết kế + review.
+
+## 10. Dữ liệu nhạy cảm & quyền riêng tư
+- Phân loại: **rất nhạy cảm** (token, TOTP secret, khóa AES, mật khẩu) → mã hóa/không bao giờ trả ra; **nhạy cảm** (sđt, địa chỉ, lương/HCNS, tin nhắn) → giới hạn theo role, che một phần ở server; **thường**.
+- HCNS (nhân sự, lương): chỉ role được cấp; truy cập có audit.
+- Messages nội bộ: nội dung mã hóa AES; quản lý khóa chỉ ở env/KMS; có kế hoạch xoay khóa (key id kèm bản ghi để giải mã dữ liệu cũ).
+- Không đưa PII vào URL, log, analytics, thông báo lỗi, tên file export.
+- Export (CSV/Sheets): kiểm tra quyền từng lần, giới hạn số dòng, chống **CSV/formula injection** (ô bắt đầu `= + - @` → thêm tiền tố an toàn), ghi audit.
+- Xóa dữ liệu: `data-cleanup` có dry-run, giới hạn lô, xác nhận 2 bước, audit; dữ liệu nghiệp vụ (đơn, COD) ưu tiên lưu trữ thay vì xóa.
+
+## 11. Giám sát & vận hành dữ liệu
+- Theo dõi: độ trễ đồng bộ (đơn mới xuất hiện trong bao lâu), tỷ lệ lỗi theo shop, số đơn chờ gán, trạng thái circuit breaker, backlog webhook inbox.
+- Cảnh báo khi: checkpoint đứng yên quá ngưỡng, cron không chạy, circuit mở kéo dài, token Facebook/J&T sắp hết hạn, đối soát lệch.
+- Có **đối soát định kỳ** số lượng đơn giữa Pancake và DB nội bộ để phát hiện thiếu/trùng.
+- Retention: `pos_webhook_inbox`, log polling, audit, notifications — có chính sách giữ lại và job dọn theo lô.
+
+## 12. Checklist trước khi xong việc có đụng data/sync
+- [ ] Đồng bộ idempotent, có lock + checkpoint, upsert theo khóa tự nhiên
+- [ ] Không hardcode terminal status; flag/label lấy từ `attention-constants.ts`
+- [ ] Cascade/assign: nguyên tử, chống vòng lặp/race, tôn trọng order-lock, có audit
+- [ ] Pancake read-only (trừ đường AI đã duyệt), qua client + `withRateLimit`
+- [ ] Tiền là số nguyên/numeric; múi giờ rõ ràng
+- [ ] Không log secret/PII; dữ liệu nhạy cảm được mã hóa/che đúng role
+- [ ] Test: race, chạy lại an toàn, sự kiện đến sai thứ tự, payload lỗi
+- [ ] `npm run lint` (0 warning) + `npm run typecheck` + test liên quan pass

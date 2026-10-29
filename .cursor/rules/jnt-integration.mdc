@@ -1,0 +1,45 @@
+---
+description: Quy tắc phát triển tích hợp J&T Express
+globs:
+  - "src/lib/webhook-verify.ts"
+  - "src/lib/**/jnt*.ts"
+  - "src/app/api/shipping/**"
+  - "src/app/api/webhooks/jnt/**"
+  - "src/app/(dashboard)/shipping/**"
+  - "supabase/migrations/*jnt*.sql"
+  - "supabase/migrations/*shipping*.sql"
+  - "docs/JNT*.md"
+  - "docs/JT_*.md"
+alwaysApply: false
+---
+
+# J&T EXPRESS RULES
+
+> Đọc @docs/JNT_API_Cursor_Training.md (và @docs/JT_EXPRESS_API.md cho tham chiếu endpoint) TRƯỚC khi sửa module J&T.
+>
+> **Lưu ý trạng thái hiện tại (2026-10):** module J&T đã bị gỡ khỏi codebase
+> (commit `94a9f89`) — route `/api/shipping/*`, `/api/webhooks/jnt`, `/api/jt-test`,
+> `/api/orders/jt-sync` và page `/warehouse/shipping` **không còn tồn tại**.
+> Chỉ còn: `src/lib/webhook-verify.ts` (helper HMAC/IP/timestamp dùng chung),
+> cột `jt_*` trong `pos_shops` (migration `012`, `039`, `057`, `058`) và bảng
+> `shipping_orders` (schema còn giữ, **chưa có code dùng**).
+> → Nếu khôi phục lại module J&T, phải viết lại theo các quy tắc dưới đây và
+> migration mới (KHÔNG sửa migration cũ).
+
+## 1. Nguyên tắc bất di bất dịch
+- **Không gọi J&T trực tiếp từ frontend.** Mọi lời gọi đi qua API route nội bộ (`src/app/api/...`).
+- **Không hardcode** `app_key`, `app_secret`, `customer_id`, `eccompanyid`, `txlogisticid` hay base URL. Lấy từ env / DB (`pos_shops.jt_*`), giải mã ở server.
+- **Không thay đổi công thức `data_digest`.** Chuỗi `logistics_interface` được ký **phải giống hệt** chuỗi được gửi đi (ký sai → J&T từ chối, không retry được).
+- **Không phát minh API không có trong tài liệu.** Endpoint/field chưa xác nhận phải ghi `TODO: CONFIRM WITH J&T` kèm nguồn, không tự đoán.
+
+## 2. Idempotency & trạng thái
+- Mọi thao tác tạo vận đơn **phải idempotent theo `txlogisticid`**.
+- **Không tạo `txlogisticid` mới khi request timeout** — timeout ≠ thất bại. Phải tra lại trạng thái trước khi retry.
+- **Webhook có thể được gửi trùng** → verify HMAC (constant-time) + IP allowlist + `fn_claim_webhook_event` (idempotency ở DB).
+- **Không coi `DELIVERED` là COD đã đối soát.** COD chỉ đóng khi đã đối soát tiền thật (`cod_reconciliation`), có audit.
+
+## 3. Cấu trúc code (khi khôi phục)
+- Tách `client / signer / mapper / parser` — không trộn trách nhiệm.
+- `parser`: raw → `unknown` → Zod → kiểu nội bộ. `mapper`: chuyển đổi hai chiều, có test với payload mẫu thật (đã ẩn danh).
+- Secret ký chỉ ở env server. Không log payload có sđt/địa chỉ đầy đủ.
+- Mọi route mới phải qua `auth-guards.ts` + Zod + `api-response.ts` (theo `20-backend.mdc`).

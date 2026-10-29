@@ -1,0 +1,92 @@
+---
+description: Quy tắc Backend (Next.js API Routes, Node runtime) - route handler, auth, validation, lỗi, cron, webhook, tích hợp ngoài
+globs: src/app/api/**,src/lib/**,src/middleware.ts,middleware.ts,vercel.json
+alwaysApply: false
+---
+
+# BACKEND RULES — Next.js API Routes (Node runtime)
+
+> Bổ sung cho CLAUDE.md. Route mỏng, logic nằm ở service trong `src/lib/*`.
+
+## 1. Khuôn route handler (bắt buộc đúng thứ tự)
+```
+guard (auth-guards.ts) → validate (Zod) → gọi service → logAudit (nếu ghi) → api-response.ts
+```
+- Route handler **mỏng** (≤ ~30–40 dòng): không chứa query phức tạp hay logic nghiệp vụ. Đẩy xuống service/lib.
+- Khai báo `export const runtime = "nodejs"` cho route dùng crypto, Buffer, `timingSafeEqual`, SDK Node.
+- Route động có dữ liệu theo người dùng: không để Next cache nhầm — dùng `export const dynamic = "force-dynamic"` hoặc `cache: "no-store"` khi cần.
+- Mọi response qua `src/lib/api-response.ts` (`{ success, data, error, meta? }`). Không tự `NextResponse.json` format khác.
+
+## 2. Xác thực & phân quyền (server là nguồn sự thật)
+- Dùng đúng guard: `requireAuth` (đăng nhập), `requireRole(...)` (theo role), `requireAdmin`, `requireManagement`. Không tự đọc cookie/JWT rồi tự kiểm tra.
+- Guard đã check `is_active` + `session.revoked_at`. Không bỏ qua, không cache kết quả quá lâu.
+- Quyền theo module/action lấy từ DB (`role_module_permissions`), `constants.ts` chỉ là fallback.
+- Mỗi route thêm mới: ghi rõ role nào được phép; thêm/kiểm tra guard trang tương ứng ở `page-permissions.ts`.
+- Phạm vi dữ liệu theo role (vd. `SALE_EMP` chỉ thấy đơn của mình): áp ở **truy vấn**, không lọc ở client.
+- Hành động nhạy cảm (đổi role, đổi allowed-ips, data-cleanup, đổi feature-flag, xóa user): yêu cầu `requireAdmin`, xác nhận lại (re-auth/2FA nếu đã có cơ chế), và `logAudit()`.
+
+## 3. Validate & chuẩn hóa input
+- **Zod ở biên** cho: body, query, params, headers, cookies, webhook payload, response từ dịch vụ ngoài.
+- Schema đặt gần route hoặc trong `_lib/schemas.ts` của module; dùng chung với client qua file `*-shared`/schema thuần (không kéo code server vào client).
+- `.strict()` để từ chối field lạ; giới hạn `max()` cho chuỗi/mảng; `z.coerce` có kiểm soát cho query.
+- Phân trang: `limit` có **trần phía server** (vd. ≤ 100), `cursor`/`page` validate.
+- Mutation: `pickFields` rồi mới `.insert/.update`. Không spread body.
+- Search: **chỉ** `safe-search.ts` (`safeIlike`, `sanitizeSearch`, `buildOrIlike`). Không nội suy chuỗi user vào `.or()`.
+- Sắp xếp/lọc động (`sort`, `order`, `column`): allowlist tên cột, không nhận tên cột tùy ý từ client.
+
+## 4. Xử lý lỗi
+- Lỗi trả ra client qua `secure-error.ts`: thông điệp chung chung cho 5xx, thông điệp rõ ràng cho 4xx do người dùng.
+- Mã trạng thái đúng: 400 (input sai) / 401 (chưa đăng nhập) / 403 (không đủ quyền) / 404 / 409 (xung đột, trùng) / 422 (nghiệp vụ không hợp lệ) / 429 (rate limit) / 5xx.
+- Log lỗi phía server **có ngữ cảnh** (request id, route, user id) nhưng **không** chứa secret/token/PII đầy đủ. Không nuốt lỗi; không `catch {}` rỗng.
+- Với lỗi Supabase: không trả `error.message`/`details`/`hint` thô ra client (lộ schema).
+
+## 5. Rate limit & chống lạm dụng
+- Upstash Redis cho rate limit phân tán. Endpoint nhạy cảm (login, 2FA, đổi mật khẩu, export, upload, AI) có giới hạn riêng chặt hơn.
+- Khi Redis lỗi: quyết định rõ **fail-closed** (endpoint nhạy cảm như login/2FA) hay **fail-open** (endpoint đọc thường); ghi chú trong code và log cảnh báo.
+- Pancake: **chỉ** qua `pancake-api.client.ts` + `withRateLimit(shopId, fn)` (token bucket + circuit breaker theo shop). Circuit mở → trả lỗi nhanh có kiểm soát, không retry dồn dập.
+
+## 6. Cron (Vercel Cron / `vercel.json`)
+- Route cron xác thực `Authorization: Bearer <CRON_SECRET>` bằng `timingSafeEqual` (secret ≥ 32 ký tự); sai → 401 không lộ chi tiết.
+- Cron **idempotent** và **chịu chạy chồng**: lấy advisory lock (`pg_try_advisory_xact_lock`) ở đầu; không lấy được → thoát nhẹ nhàng.
+- Có **checkpoint** (`pos_poll_checkpoints`, `pos_shop_sync_state`) để tiếp tục từ chỗ dừng; cập nhật checkpoint **sau** khi xử lý thành công lô.
+- Có giới hạn thời gian chạy (`maxDuration`) và chia lô (chunk) vừa phải; xử lý song song có giới hạn đồng thời (concurrency cap), không `Promise.all` vô hạn.
+- Ghi log tóm tắt mỗi lần chạy (số đơn mới/cập nhật/lỗi, thời gian) — không log dữ liệu khách.
+- Đổi lịch cron: sửa `vercel.json` **và** tài liệu; kiểm tra `*/2` vs `*/5` không gây chồng lấn lock.
+
+## 7. Webhook
+- Thứ tự: đọc **raw body** → verify HMAC (constant-time) → (IP allowlist nếu có, vd. J&T) → Zod parse → `fn_claim_webhook_event` → xử lý → `fn_complete_webhook_event` (hoặc `fn_release_webhook_event` khi lỗi tạm thời để provider retry).
+- Luôn trả 2xx nhanh cho provider khi đã nhận hợp lệ; việc nặng đẩy xuống xử lý nền.
+- Chống replay: kiểm tra timestamp (nếu provider cung cấp) + unique `(provider, event_id)`.
+- Không dùng `lib/idempotency.ts` in-memory làm cơ chế chính trên prod.
+
+## 8. Tích hợp ngoài
+- **Pancake**: 100% read-only. Mọi ghi (AI Order Agent) chỉ theo khuôn: draft → duyệt → idempotency key → audit.
+- **J&T**: tách `client / signer / mapper / parser`; không trộn trách nhiệm. Secret ký lấy từ env; không log payload có sđt/địa chỉ đầy đủ.
+- **Facebook Ads**: token mã hóa trong DB, giải mã ở server khi dùng; xử lý token hết hạn/thu hồi (đánh dấu và báo admin); retry có backoff theo rate limit của Graph API.
+- Mọi gọi HTTP ra ngoài: **timeout**, retry có backoff + jitter (chỉ cho thao tác idempotent), parse response bằng Zod, không tin dữ liệu ngoài.
+- Chuyển đổi dữ liệu ngoài → nội bộ qua **mapper** riêng, có test với payload mẫu thật (đã ẩn danh).
+
+## 9. Service & tổ chức code
+- Service thuần (không phụ thuộc `NextRequest`) để test được; nhận dependency (client Supabase) qua tham số khi hợp lý.
+- Lib có `import "server-only"` thì không import từ client. Lib thuần cố tình không có `server-only` để chạy test bằng `tsx` — **không thêm vào**.
+- `admin.ts` (service role): chỉ dùng ở server, tối thiểu cần thiết, **sau** khi đã kiểm tra quyền.
+- Thao tác nhiều bước nguyên tử → RPC/transaction ở DB, không chuỗi nhiều request rời.
+- Hàm ≤ 30–40 dòng; tách hàm nhỏ có tên rõ nghĩa. Không `any`; dữ liệu ngoài là `unknown` đến khi parse.
+
+## 10. Logging & audit
+- `logAudit()` cho mọi thao tác ghi quan trọng: ai, làm gì, đối tượng, trước/sau (đã che dữ liệu nhạy cảm), IP, thời điểm.
+- Log có cấu trúc, có request id. **Cấm log**: mật khẩu, token, TOTP secret, khóa AES, `Authorization`, cookie, sđt/địa chỉ khách đầy đủ.
+- Không để `console.log` debug trong code hoàn thành.
+
+## 11. Test backend
+- Unit test service/mapper/parser/signer bằng Vitest; test route quan trọng: thiếu token → 401, sai role → 403, input sai → 400/422, vượt rate limit → 429.
+- Test webhook: sai chữ ký bị từ chối; event trùng chỉ xử lý một lần.
+- Test cron: chạy chồng không xử lý trùng; checkpoint đúng sau lỗi giữa chừng.
+
+## 12. Checklist trước khi xong việc có đụng backend
+- [ ] Route đủ: guard → Zod → service → audit → `api-response.ts`
+- [ ] Không lộ lỗi nội bộ; không log secret/PII
+- [ ] Search qua `safe-search.ts`; mutation qua `pickFields`
+- [ ] Gọi ngoài có timeout/retry/Zod; Pancake qua client + `withRateLimit`
+- [ ] Cron/webhook idempotent, có lock/checkpoint
+- [ ] `npm run lint` (0 warning) + `npm run typecheck` + test liên quan pass

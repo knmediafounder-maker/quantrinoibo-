@@ -1,0 +1,372 @@
+---
+description: BẢO MẬT (luôn bật) - phiên/cookie/JWT, xác thực, phân quyền mỗi request, chống IDOR/injection/XSS/CSRF/SSRF, dữ liệu, Supabase, webhook, giám sát, chống xâm nhập
+alwaysApply: true
+---
+
+# SECURITY RULES — WepApp_KN
+
+> Luật cứng, luôn áp dụng cho mọi task. Xung đột với rule khác → **bảo mật thắng**.
+> Mô hình đe dọa: mọi input là độc hại, mọi client là không đáng tin, mọi dependency/token/tài khoản nhân viên có thể bị chiếm.
+> Tham chiếu: OWASP Top 10, OWASP ASVS, OWASP API Security Top 10, Cheat Sheet Series.
+> Hệ thống chứa dữ liệu thật: đơn hàng, COD, khách hàng, nhân sự/lương, token Facebook/J&T/Pancake.
+
+---
+
+## 0. NGUYÊN TẮC GỐC
+1. **Deny by default**: không có guard = không được truy cập.
+2. **Server là nguồn sự thật**: ẩn nút ở UI không phải bảo mật. Mọi kiểm tra quyền làm lại ở server, mỗi request.
+3. **Defense in depth**: guard route + guard page/middleware + RLS + ràng buộc DB. Một lớp hỏng, lớp khác vẫn chặn.
+4. **Least privilege**: user, role, service account, API key, DB role đều chỉ có quyền tối thiểu.
+5. **Fail closed**: lỗi ở bước kiểm tra quyền/xác thực → **từ chối**, không cho qua.
+6. **Không bí mật bằng sự mập mờ**: giả định kẻ tấn công biết toàn bộ source code.
+7. **Không tự viết crypto**. Dùng thư viện chuẩn của Node (`crypto`) và thuật toán chuẩn.
+8. Phát hiện lỗ hổng ngoài phạm vi task → **báo cáo ngay**, ghi rõ mức độ; không im lặng bỏ qua.
+
+---
+
+## 1. PHIÊN (SESSION), COOKIE, JWT
+
+### 1.1 Cookie
+- Cookie phiên/refresh: `HttpOnly; Secure; SameSite=Lax` (dùng `Strict` cho khu vực admin nếu không phá luồng). `Path=/`, **không** đặt `Domain` rộng hơn cần thiết. Tên có prefix `__Host-` khi có thể (yêu cầu Secure + Path=/ + không Domain).
+- **Không bao giờ** lưu access/refresh token, session id, TOTP secret trong `localStorage`/`sessionStorage`/biến JS đọc được.
+- `Secure` bắt buộc ở production; chỉ phục vụ qua HTTPS; bật HSTS (xem 6).
+- Cookie chứa dữ liệu nhạy cảm (nếu bắt buộc) phải được ký/mã hóa; không chứa PII/role "tin tưởng được".
+- Kiểm tra thực tế trước khi sửa: cờ, thời hạn, tên cookie đang dùng — **không đoán**.
+
+### 1.2 JWT & refresh token
+- JWT chỉ chấp nhận **thuật toán cố định** (cấu hình cứng ở server, vd. HS256/RS256). **Cấm** `alg: none`; **cấm** lấy `alg` từ header token để chọn cách verify.
+- Luôn verify: chữ ký, `exp`, `nbf`, `iss`, `aud`. Dung sai đồng hồ nhỏ (≤ 30 giây).
+- **Access token sống ngắn** (≤ 15 phút). **Refresh token** dài hạn hơn nhưng:
+  - lưu **dạng hash** ở bảng `sessions` (không lưu thô),
+  - **xoay vòng (rotation)** mỗi lần dùng; token cũ bị vô hiệu,
+  - **phát hiện tái sử dụng** (reuse detection): refresh token cũ bị dùng lại → coi là bị đánh cắp → **thu hồi cả chuỗi phiên** của user đó và ghi audit.
+- Khóa ký JWT: ≥ 256 bit ngẫu nhiên, chỉ ở env server, có kế hoạch xoay (kèm `kid`). Không dùng chung khóa JWT với khóa mã hóa AES.
+- Payload JWT tối thiểu (`sub`, `sid`, `exp`...). **Không** nhét role/quyền làm nguồn tin cậy duy nhất: role/quyền đọc lại từ DB (hoặc cache TTL ngắn có thể vô hiệu hóa).
+
+### 1.3 Vòng đời phiên
+- Mỗi phiên: **thời hạn tuyệt đối** (vd. 7–30 ngày) + **thời hạn không hoạt động** (idle timeout, vd. 30–60 phút với admin/management).
+- **Xoay session id sau**: đăng nhập, bật/tắt 2FA, đổi mật khẩu, đổi quyền, leo thang đặc quyền (chống session fixation).
+- Đăng xuất = **thu hồi phía server** (`sessions.revoked_at`), không chỉ xóa cookie.
+- **Thu hồi hàng loạt** khi: đổi mật khẩu, reset mật khẩu, khóa/vô hiệu user, đổi role, nghi ngờ bị xâm nhập. Có nút "đăng xuất mọi thiết bị".
+- Mỗi request qua guard phải kiểm tra: phiên còn hạn **và** `revoked_at is null` **và** `is_active = true` của user **ở thời điểm request** (đã có trong `auth-guards.ts` — không bỏ, không bypass, không cache quá vài giây).
+- Lưu metadata phiên để phát hiện bất thường: IP, user-agent (đã chuẩn hóa), thời điểm tạo/dùng cuối. Cho user xem danh sách phiên đang hoạt động.
+- Giới hạn số phiên đồng thời mỗi user (vd. ≤ 5–10); vượt thì thu hồi phiên cũ nhất.
+- Phát hiện bất thường: đổi quốc gia/ASN đột ngột, đổi user-agent hoàn toàn, tốc độ request bất thường → yêu cầu xác thực lại hoặc thu hồi + cảnh báo.
+
+### 1.4 Gắn phiên với ngữ cảnh (nâng cao)
+- Có thể ràng buộc phiên với IP/subnet cho **ADMIN/DIRECTOR** (kết hợp `allowed_ips`, hỗ trợ CIDR). Thay đổi IP → buộc xác thực lại.
+- Hành động nhạy cảm yêu cầu **xác thực lại (step-up)**: nhập lại mật khẩu hoặc mã TOTP (đổi mật khẩu/email, đổi role, sửa `allowed_ips`, `data-cleanup`, xem/export dữ liệu nhạy cảm, xóa user, đổi feature-flag).
+
+---
+
+## 2. XÁC THỰC (AUTHENTICATION)
+
+### 2.1 Mật khẩu
+- Hash bằng **Argon2id** (ưu tiên) hoặc bcrypt cost ≥ 12 / scrypt. **Cấm** MD5/SHA1/SHA256 thuần, cấm lưu plaintext, cấm mã hóa 2 chiều mật khẩu.
+- Độ dài tối thiểu **12 ký tự**; cho phép tối đa ≥ 64; không ép ký tự đặc biệt vô nghĩa; chặn mật khẩu phổ biến/đã lộ (so khớp danh sách, hoặc HIBP k-anonymity — không gửi mật khẩu thô).
+- Không giới hạn dán mật khẩu. Không gợi ý mật khẩu. Không log mật khẩu dưới bất kỳ hình thức nào (kể cả khi lỗi).
+- Đổi mật khẩu: yêu cầu mật khẩu cũ → thu hồi mọi phiên khác → gửi thông báo.
+
+### 2.2 Chống brute-force / credential stuffing
+- Khóa tài khoản **sau 5 lần sai** (đã có) — kết hợp **rate limit theo cả IP lẫn tài khoản** (Upstash). Lockout có thời hạn tăng dần (exponential), có cách admin mở khóa; coi chừng bị lợi dụng để khóa nạn nhân (DoS tài khoản) → ưu tiên tăng độ trễ + CAPTCHA/challenge cho IP lạ.
+- Login/2FA/reset/đổi mật khẩu: rate limit **fail-closed** nếu Redis lỗi.
+- **Không tiết lộ** tài khoản có tồn tại hay không: thông báo chung ("Sai tên đăng nhập hoặc mật khẩu"), thời gian phản hồi gần như nhau (verify hash giả khi không có user).
+- So sánh secret/token/mã bằng `crypto.timingSafeEqual` (độ dài bằng nhau trước khi so).
+
+### 2.3 2FA TOTP (code tự viết — rủi ro cao)
+- Chuẩn RFC 6238 (HMAC-SHA1/256, 30 giây, 6 chữ số), cửa sổ lệch tối đa ±1 bước.
+- **Chống replay**: lưu mã/bước thời gian đã dùng, từ chối dùng lại trong cùng cửa sổ.
+- **Rate limit + khóa** khi nhập sai nhiều lần (mã 6 số rất dễ brute-force).
+- Secret TOTP **mã hóa AES-GCM** ở DB; hiển thị một lần khi đăng ký; **mã dự phòng (recovery codes)** lưu dạng hash, dùng một lần.
+- Bắt buộc 2FA cho **ADMIN, DIRECTOR, VICE_DIRECTOR, MANAGER, HCNS** (và ai truy cập dữ liệu nhạy cảm). Tắt/đặt lại 2FA cần quy trình xác minh mạnh + audit.
+- Không sửa logic TOTP trừ khi task yêu cầu đúng việc đó; mọi thay đổi có unit test (vector chuẩn RFC + trường hợp sai).
+
+### 2.4 Quên/đặt lại mật khẩu, tạo tài khoản
+- Token reset: ngẫu nhiên bằng CSPRNG (≥ 32 byte), **dùng một lần**, hết hạn ngắn (≤ 30–60 phút), **lưu hash**, vô hiệu khi có token mới/đổi mật khẩu. Không đưa token vào log/Referer (dùng `Referrer-Policy`).
+- Phản hồi "nếu email tồn tại, chúng tôi đã gửi hướng dẫn" — không lộ tồn tại.
+- **Không có đăng ký công khai**. Route `register` đã vô hiệu hóa (403) → **xóa hẳn code** thay vì giữ (giảm bề mặt tấn công). Tài khoản mới chỉ do ADMIN tạo, mật khẩu tạm bắt buộc đổi lần đầu.
+- Nhân viên nghỉ việc: **vô hiệu ngay** (`is_active=false`) + thu hồi mọi phiên + thu hồi token/khóa liên quan.
+
+### 2.5 IP allowlist
+- `allowed_ips` (CIDR) áp dụng ở **server** (middleware/guard), không chỉ UI. Lấy IP từ header **do hạ tầng tin cậy** đặt (vd. Vercel `x-forwarded-for` phần tử đúng vị trí); **không tin** header client tự gửi nếu không qua proxy tin cậy.
+- Thay đổi allowlist: chỉ ADMIN, step-up auth, audit, và không cho tự khóa mình ra ngoài (kiểm tra IP hiện tại).
+
+---
+
+## 3. PHÂN QUYỀN (AUTHORIZATION) — NGUỒN LỖ HỔNG SỐ 1
+
+### 3.1 Mỗi request, mọi route
+Thứ tự bắt buộc: **`guard → Zod → kiểm tra quyền trên đối tượng → service → logAudit → api-response`**.
+- Mọi route/Server Action/Route Handler đều qua `auth-guards.ts`. **Không guard = lỗ hổng**, trừ route công khai khai báo rõ (webhook có HMAC, cron có `CRON_SECRET`, health check).
+- Guard chỉ trả lời "ai đang gọi + role gì". Còn **"người này có được làm việc này với đối tượng này không?"** phải kiểm tra riêng (xem 3.2).
+- Không tự viết kiểm tra session/role thay thế; không đọc cookie/JWT thủ công rồi tin.
+- Route mới: ghi rõ role được phép; thêm guard trang ở `page-permissions.ts`; viết **negative test** (401/403).
+
+### 3.2 Chống IDOR / BOLA (Broken Object Level Authorization)
+- Mọi truy vấn theo `id` (đơn, khách, tin nhắn, bản ghi lương, phiên, file…) phải ràng buộc **chủ sở hữu/phạm vi** ở **câu truy vấn**: `where id = ? and <điều kiện quyền>`.
+- Role phạm vi hẹp (vd. `SALE_EMP` chỉ thấy đơn **được gán cho mình/phòng ban mình**; `WAREHOUSE_EMP` chỉ kho của mình): áp **ở server/DB**, không lọc ở client.
+- **Không tin** `userId`, `role`, `departmentId`, `shopId`, `isAdmin`, `price`, `amount`, `status` từ body/query/header client — lấy từ session hoặc DB.
+- Trả **404 (không phải 403)** khi đối tượng tồn tại nhưng ngoài quyền, để không lộ sự tồn tại (ở các tài nguyên nhạy cảm).
+- ID công khai khó đoán (UUID); không dựa vào ID tuần tự làm biện pháp bảo mật. Vẫn phải kiểm tra quyền dù ID khó đoán.
+
+### 3.3 Chống BFLA / leo thang đặc quyền (Broken Function Level Authorization)
+- Chức năng quản trị (users, permissions, allowed-ips, feature-flags, data-cleanup, monitoring, export hàng loạt) chỉ `requireAdmin`/`requireManagement` đúng cấp. Kiểm tra **role của người gọi**, không phải tham số "role" trong body.
+- **Chống tự nâng quyền**: user không được sửa role/quyền của chính mình; không được gán role **cao hơn** role của mình; không được vô hiệu hóa/đổi quyền ADMIN cuối cùng (luôn còn ≥ 1 ADMIN).
+- Đổi `role_module_permissions` có hiệu lực → thu hồi/làm mới phiên bị ảnh hưởng; ghi audit trước/sau.
+- Quyền nằm ở DB (`modules` / `module_actions` / `role_module_permissions`); `constants.ts` chỉ fallback — **fallback không được rộng hơn** quyền DB (fail closed).
+
+### 3.4 Chống Mass Assignment & lộ trường
+- Mutation: **`pickFields`** (allowlist field) rồi mới insert/update. **Cấm** spread `body` vào DB. Cột đặc quyền (`role`, `is_active`, `is_admin`, `owner_id`, `price`, `status`, `created_by`…) không bao giờ nhận trực tiếp từ client, trừ endpoint chuyên biệt có guard riêng.
+- Response: chọn cột tường minh (DTO). **Cấm** trả nguyên record có `password_hash`, `totp_secret`, `refresh_token`, token FB/J&T, dữ liệu lương… Che sđt/địa chỉ ở **server** theo role.
+- Phân trang: `limit` có trần phía server; cấm endpoint trả toàn bộ bảng.
+
+### 3.5 Race condition & logic nghiệp vụ
+- Thao tác "kiểm tra rồi ghi" (check-then-act: gán đơn, đối soát, trừ tồn, dùng mã…) phải **nguyên tử** (RPC/transaction + advisory lock/`SELECT … FOR UPDATE`/unique constraint). Cấm TOCTOU ở tầng ứng dụng.
+- Kiểm tra bất biến nghiệp vụ ở server: số lượng ≥ 1, giá/tổng do server tính, đơn terminal không sửa tùy tiện, không chuyển trạng thái sai thứ tự.
+
+---
+
+## 4. XỬ LÝ INPUT & CHỐNG INJECTION
+
+- **Zod ở biên** cho: body, query, params, headers, cookies, webhook payload, response từ dịch vụ ngoài. Allowlist, `.strict()`, giới hạn `min/max` độ dài, regex đơn giản (tránh ReDoS), enum đóng.
+- **SQL/PostgREST injection**: chỉ dùng Supabase client có tham số + RPC có tham số. **Cấm** nội suy chuỗi user vào `.or()`, `.ilike()`, `.filter()`, `.order()` (tên cột), hay SQL thô. Search **bắt buộc** `safe-search.ts` (`safeIlike`, `sanitizeSearch`, `buildOrIlike`). Cột `sort`/`order`/`select` do client chọn → **allowlist**.
+- **Trong hàm SQL/RPC**: không nối chuỗi động bằng `format`/`||` với input; nếu bắt buộc dùng `format('%I'/'%L')` / `quote_ident` / `quote_literal`.
+- **XSS**: dựa vào escape mặc định của React; cấm `dangerouslySetInnerHTML` với dữ liệu người dùng (ghi chú khách, tin nhắn, tên sản phẩm, nội dung từ Pancake/J&T/Facebook đều là **không đáng tin**). Cần HTML → sanitize bằng DOMPurify cấu hình chặt. Cấm `eval`, `new Function`, `innerHTML`, `document.write`. URL do người dùng cung cấp: chỉ cho `http/https` (chặn `javascript:`, `data:`).
+- **Command injection**: không gọi shell với input người dùng; nếu bắt buộc dùng `execFile` với mảng tham số + allowlist.
+- **Path traversal**: không ghép đường dẫn từ input; chuẩn hóa + kiểm tra nằm trong thư mục cho phép; dùng ID ngẫu nhiên thay tên file người dùng.
+- **Open redirect**: chỉ redirect tới đường dẫn nội bộ/allowlist (đặc biệt tham số `next`/`redirect` sau đăng nhập).
+- **Prototype pollution / unsafe deserialization**: không merge sâu object không tin cậy; dùng `Map`/`Object.create(null)` cho key động; không parse dữ liệu tùy ý thành object thực thi.
+- **ReDoS / DoS payload**: giới hạn kích thước body, độ dài chuỗi, số phần tử mảng, độ sâu JSON.
+- **CSV/Formula injection** (Sheets, export): ô bắt đầu `= + - @` (và tab/CR) → thêm tiền tố `'` hoặc ký tự an toàn khi **xuất**; kiểm tra khi **nhập**.
+- **Header injection / log injection**: loại bỏ `\r\n` khỏi giá trị đưa vào header/log.
+
+---
+
+## 5. CSRF, CORS, SSRF
+
+### 5.1 CSRF
+- Cookie `SameSite=Lax/Strict` + kiểm tra **`Origin`/`Host`** (hoặc CSRF token) cho mọi request đổi trạng thái dùng cookie (POST/PUT/PATCH/DELETE).
+- **Không đổi trạng thái bằng `GET`** (kể cả "tiện": đăng xuất, xóa, duyệt).
+- Server Actions: Next đã kiểm tra Origin — **không** tắt/nới `allowedOrigins`; liệt kê chính xác domain.
+- Endpoint nhận JSON: yêu cầu `Content-Type: application/json` để giảm CSRF dạng form.
+
+### 5.2 CORS
+- **Allowlist origin cụ thể**. **Cấm** `Access-Control-Allow-Origin: *` kèm credentials; cấm phản chiếu mù quáng `Origin` request; cấm `null`.
+- Chỉ mở CORS cho route thật sự cần (hầu như không cần vì cùng origin).
+
+### 5.3 SSRF (server gọi URL)
+- Mọi URL do người dùng/dữ liệu ngoài cung cấp mà server sẽ fetch (ảnh, webhook callback, link tracking…) → **allowlist domain/scheme**; chỉ `https`.
+- Chặn IP nội bộ/loopback/link-local/metadata cloud: `127.0.0.0/8`, `10/8`, `172.16/12`, `192.168/16`, `169.254.169.254`, `::1`, `fc00::/7`, `fe80::/10`. **Phân giải DNS rồi kiểm tra IP**, chống DNS rebinding (kết nối thẳng tới IP đã kiểm tra), tắt/kiểm soát redirect.
+- Gọi Pancake/J&T/Facebook: base URL **cố định trong code/env**, không nhận từ client.
+
+---
+
+## 6. HTTP SECURITY HEADERS (cấu hình tập trung `next.config`/middleware)
+
+- `Content-Security-Policy`: `default-src 'self'`; script dùng **nonce/hash** (hạn chế `unsafe-inline`, **cấm** `unsafe-eval`); `object-src 'none'`; `base-uri 'self'`; `frame-ancestors 'none'`; `form-action 'self'`; `connect-src` chỉ liệt kê Supabase/Upstash/API cần dùng; `img-src` allowlist. Bắt đầu bằng `Content-Security-Policy-Report-Only` để không phá UI rồi siết dần.
+- `Strict-Transport-Security: max-age=63072000; includeSubDomains; preload`
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY` (hoặc `frame-ancestors`)
+- `Referrer-Policy: strict-origin-when-cross-origin` (không lộ URL chứa token/ID nhạy cảm)
+- `Permissions-Policy`: tắt `camera, microphone, geolocation, payment, usb…` nếu không dùng
+- `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Resource-Policy: same-origin`
+- Tắt `X-Powered-By` (`poweredByHeader: false`); không lộ phiên bản server/stack trong response/lỗi.
+- Response API chứa dữ liệu cá nhân: `Cache-Control: no-store`. Không để CDN/Next cache dữ liệu theo người dùng.
+- Chỉ HTTPS; redirect HTTP→HTTPS; cookie `Secure`.
+
+---
+
+## 7. RATE LIMIT, CHỐNG LẠM DỤNG, DoS
+
+- Rate limit toàn cục + **chặt hơn** cho: login, 2FA, reset mật khẩu, tạo user, export, upload, search nặng, endpoint AI, endpoint gọi dịch vụ ngoài tốn tiền.
+- Khóa theo **nhiều chiều** (IP + user id + endpoint); trả `429` + `Retry-After`.
+- Giới hạn: kích thước body, số item/trang, độ sâu truy vấn, số kết quả export, thời gian xử lý (`maxDuration`), số request đồng thời mỗi user.
+- Chống **enumeration**: phản hồi đồng nhất, không phân biệt "không tồn tại" và "không có quyền" ở tài nguyên nhạy cảm.
+- Redis lỗi: endpoint nhạy cảm **fail-closed**; endpoint đọc thường fail-open có cảnh báo.
+- Pancake qua `withRateLimit` (token bucket + circuit breaker theo shop) — không retry dồn.
+
+---
+
+## 8. BẢO MẬT DỮ LIỆU
+
+### 8.1 Phân loại & xử lý
+| Mức | Ví dụ | Quy tắc |
+|---|---|---|
+| **Tuyệt mật** | mật khẩu/hash, TOTP secret, refresh token, token FB/VIA/J&T/Pancake, khóa AES/JWT/`SERVICE_ROLE` | Không bao giờ ra client/log; mã hóa/hash; chỉ env/KMS; xoay vòng |
+| **Nhạy cảm** | sđt, địa chỉ, tên khách, COD, lương/HCNS, tin nhắn nội bộ | Theo role; che một phần ở server; audit khi xem/xuất; không vào URL/log |
+| **Nội bộ** | cấu hình, báo cáo | Cần đăng nhập |
+
+### 8.2 Mã hóa
+- **Truyền**: TLS 1.2+ mọi nơi (kể cả tới Supabase, Upstash, dịch vụ ngoài). Không tắt kiểm tra chứng chỉ (`rejectUnauthorized:false`, `NODE_TLS_REJECT_UNAUTHORIZED=0` bị **cấm**).
+- **Lưu**: dữ liệu tuyệt mật/tin nhắn/token mã hóa ở tầng ứng dụng bằng **AES-256-GCM** (IV ngẫu nhiên 12 byte **duy nhất mỗi lần mã hóa**, lưu cùng ciphertext + auth tag). **Cấm** AES-ECB, IV cố định, tự chế.
+- **Quản lý khóa**: khóa chỉ ở env/secret manager; có `key_id` kèm bản ghi để xoay khóa mà vẫn giải mã dữ liệu cũ; khóa mã hóa khác khóa ký JWT khác khóa HMAC webhook; **không** commit khóa.
+- Hash dữ liệu cần tra cứu nhưng không cần đọc lại (token reset, API key, refresh token): SHA-256/HMAC với pepper phía server.
+
+### 8.3 Che & giảm thiểu dữ liệu
+- **Data minimization**: chỉ thu/giữ/trả dữ liệu cần thiết. Danh sách đơn không cần trả đầy đủ sđt/địa chỉ → che (`09******12`); xem đầy đủ cần quyền + (tùy mức) audit.
+- Che ở **server** (không gửi dữ liệu đầy đủ xuống client rồi ẩn bằng CSS).
+- Export dữ liệu hàng loạt (đơn, khách, nhân sự): giới hạn role, giới hạn số dòng, rate limit, **bắt buộc audit**, cân nhắc watermark/đặt thời hạn link tải.
+- Dữ liệu dev/test: **ẩn danh**, không dùng dữ liệu thật.
+- Xóa dữ liệu: có chính sách giữ lại & xóa; log/audit không chứa PII đầy đủ.
+
+### 8.4 Chống rò rỉ qua các kênh phụ
+- **Không** đưa PII/token vào: URL/query string, log, error message, tên file export, analytics, Sentry (scrub), message commit.
+- Response lỗi không chứa stack/SQL/tên bảng/cột/đường dẫn (`secure-error.ts`); lỗi Supabase thô không trả client.
+- Kiểm tra `console.log`/`debugLog` không in object có token/PII. Không in `process.env`.
+- Bản build client **không** chứa secret: biến `NEXT_PUBLIC_*` đều công khai.
+
+---
+
+## 9. SUPABASE / POSTGRES
+
+- **`SERVICE_ROLE_KEY`**: chỉ `admin.ts`, chỉ server, không bao giờ trong bundle client/log/`NEXT_PUBLIC_*`. Nó **bypass RLS** → kiểm tra quyền **trước** khi dùng; dùng với phạm vi truy vấn hẹp nhất; mỗi lần dùng cho thao tác ghi quan trọng có `logAudit()`.
+- **anon key** là công khai — mọi thứ anon truy cập được phải an toàn khi bị kẻ xấu gọi trực tiếp tới REST/RPC/Realtime của Supabase **bỏ qua hoàn toàn Next.js**. Do đó **RLS là hàng rào thật**, không chỉ guard Next.
+- **Mọi bảng `public` bật RLS**; bảng nhạy cảm không có policy cho `anon`. Kiểm định định kỳ: `select * from pg_tables where schemaname='public' and rowsecurity=false;` phải rỗng; rà policy `using (true)`.
+- `SECURITY DEFINER`: `set search_path` cố định, kiểm tra quyền **bên trong**, `revoke execute from public, anon` rồi `grant` tối thiểu. Hàm RPC mà `anon`/`authenticated` gọi được = **API công khai** → coi như endpoint, phải kiểm tra quyền/Input.
+- View: `security_invoker = true` để không bypass RLS của bảng gốc.
+- Storage: bucket **private** mặc định; signed URL ngắn hạn; policy theo role/path; giới hạn MIME + size; không đoán được tên object.
+- Realtime: chỉ publish bảng cần; policy `select` đúng — không phát dữ liệu nhạy cảm cho người không đủ quyền.
+- DB role ứng dụng không phải superuser; kết nối qua TLS; bật PITR/backup, backup mã hóa; **không** mở DB ra Internet ngoài đường Supabase.
+- Migration: không `grant all` bừa; không tạo policy quá rộng "tạm"; không tắt RLS "để test" rồi quên.
+- Nhật ký/audit: **append-only** (không update/delete cho role ứng dụng).
+
+---
+
+## 10. WEBHOOK, CRON, TÍCH HỢP NGOÀI
+
+- **Webhook**: đọc **raw body** → verify HMAC **constant-time** (`timingSafeEqual`) → kiểm tra timestamp (chống replay, ví dụ ±5 phút nếu provider hỗ trợ) → IP allowlist (J&T, hỗ trợ CIDR) → Zod → idempotency DB (`fn_claim_webhook_event`). Chữ ký sai → `401/403` không lộ lý do chi tiết. Không bao giờ bỏ verify "để test".
+- **Cron**: `Authorization: Bearer <CRON_SECRET>` so `timingSafeEqual`; secret ≥ 32 ký tự ngẫu nhiên; sai → 401. Route cron **không** gọi được bằng cookie người dùng. Cron idempotent + advisory lock.
+- **Tích hợp ngoài** (Pancake, J&T, Facebook): coi mọi response là **không đáng tin** (Zod); timeout + retry có backoff chỉ cho thao tác idempotent; token mã hóa ở DB; xử lý token hết hạn/bị thu hồi; không log payload chứa PII/token.
+- Pancake **read-only**; ngoại lệ duy nhất là đường ghi của AI Order Agent sau duyệt (draft → review → idempotency key → audit).
+
+---
+
+## 11. UPLOAD FILE
+
+- Allowlist loại file theo **nội dung thực (magic bytes)**, không tin `Content-Type`/đuôi file. Giới hạn size; giới hạn số file.
+- Đổi tên thành ID ngẫu nhiên; lưu Storage **private**, phục vụ qua signed URL ngắn hạn; **không** lưu trong thư mục public/webroot.
+- Ảnh: re-encode để loại payload/metadata (EXIF GPS). **SVG/HTML do người dùng upload = không đáng tin** (có thể chứa script) → từ chối hoặc sanitize nghiêm ngặt, phục vụ với `Content-Disposition: attachment` + `nosniff`.
+- Không giải nén/ thực thi file người dùng tải lên; chống zip-bomb/zip-slip nếu có xử lý file nén. CSV import: giới hạn kích thước/dòng, chống formula injection.
+- Quét virus nếu có điều kiện.
+
+---
+
+## 12. AI / LLM
+
+- Output LLM là **input không đáng tin**: parse Zod, sai schema → từ chối; không sinh SQL/shell chạy trực tiếp; không render HTML thô.
+- **Prompt injection**: ghi chú khách/nội dung ngoài là *dữ liệu*, không phải *chỉ dẫn*; LLM **không có công cụ ghi trực tiếp**; mọi ghi qua draft → duyệt → idempotent → audit.
+- **AI không bao giờ quyết định giá/tiền/chiết khấu/quyền**.
+- Không gửi secret/PII thừa vào prompt; có giới hạn token/chi phí/tần suất theo user; ghi audit.
+- API key LLM chỉ ở server env.
+
+---
+
+## 13. CHUỖI CUNG ỨNG & HẠ TẦNG
+
+- Commit **lockfile**; CI dùng `npm ci`. Chạy `npm audit` (và OSV-scanner/Dependabot) — lỗ hổng **high/critical** phải xử lý trước khi merge/release.
+- Thêm dependency: kiểm tra bảo trì, số tải, license, lịch sử CVE, **typosquatting** (tên gần giống package nổi tiếng), số lượng dependency kéo theo. Ưu tiên không thêm nếu viết được vài chục dòng.
+- Cân nhắc `ignore-scripts` khi cài package lạ; không chạy script từ nguồn không tin cậy; không `curl | bash`.
+- Pin phiên bản package quan trọng (Next, Supabase, thư viện crypto/auth).
+- **Secret scanning** (gitleaks/trufflehog) ở pre-commit và CI. Lỡ commit secret → **xoay (rotate) ngay**; xóa khỏi code chưa đủ (còn trong lịch sử git).
+- `.env*` trong `.gitignore`; chỉ commit `.env.example` giá trị giả. Tách secret dev/staging/prod; mỗi môi trường khóa riêng.
+- Vercel/Docker: biến môi trường qua secret manager; container chạy **user không phải root**, image tối giản, quét image; không đưa secret vào layer/image; không để lộ `.git`, `.env`, source map chứa dữ liệu nhạy cảm ra production.
+- GitHub: branch protection, bắt buộc review, status checks; Actions pin theo commit SHA, `GITHUB_TOKEN` quyền tối thiểu; bật 2FA cho mọi tài khoản có quyền repo/Vercel/Supabase.
+- Môi trường tách biệt; **không dùng dữ liệu prod ở dev**; không cho preview deployment truy cập DB prod.
+
+---
+
+## 14. GIÁM SÁT, AUDIT, PHẢN ỨNG SỰ CỐ
+
+### 14.1 Audit & log
+- `logAudit()` cho mọi thao tác ghi quan trọng: **ai, làm gì, trên đối tượng nào, trước/sau (đã che), IP, user-agent, thời điểm, kết quả**.
+- Bắt buộc audit: đăng nhập thành công/thất bại, đăng xuất, đổi/reset mật khẩu, bật/tắt 2FA, đổi role/quyền, sửa `allowed_ips`, feature-flag, `data-cleanup`, export dữ liệu, xem dữ liệu nhạy cảm đầy đủ, thao tác admin, gán/đổi người xử lý đơn, đối soát COD, thao tác AI Order Agent.
+- Log có cấu trúc (JSON), có request id; **không chứa** secret/token/PII đầy đủ; chống log injection; bất biến (append-only), giữ theo chính sách.
+
+### 14.2 Phát hiện & cảnh báo
+Cảnh báo khi: nhiều đăng nhập thất bại/credential stuffing, đăng nhập từ IP/quốc gia lạ, tái sử dụng refresh token, tăng đột biến 401/403/429/5xx, truy cập tài nguyên ngoài quyền lặp lại (dấu hiệu dò IDOR), export bất thường, đổi quyền/role ngoài giờ, cron không chạy/checkpoint đứng yên, circuit breaker mở lâu, token FB/J&T sắp hết hạn.
+
+### 14.3 Phản ứng sự cố (runbook ngắn)
+1. **Cô lập**: thu hồi phiên liên quan / khóa tài khoản / chặn IP; tắt feature-flag nếu cần.
+2. **Xoay secret**: JWT secret, `CRON_SECRET`, HMAC webhook, khóa AES (qua `key_id`), token FB/J&T/Pancake, `SERVICE_ROLE_KEY`, mật khẩu DB — theo mức độ ảnh hưởng.
+3. **Điều tra** bằng audit log + log hạ tầng; xác định phạm vi dữ liệu bị lộ.
+4. **Khắc phục** gốc rễ + thêm test hồi quy; **thông báo** theo yêu cầu pháp lý (bảo vệ dữ liệu cá nhân) và các bên liên quan.
+5. **Rút kinh nghiệm**: cập nhật rule/`rules:check`.
+
+---
+
+## 15. ENFORCEMENT — BIẾN LUẬT THÀNH KIỂM TRA TỰ ĐỘNG
+
+Luật chỉ có tác dụng khi được cưỡng chế. Phân tích hiện trạng cho thấy **82 file `@ts-nocheck` tập trung ở API routes nhạy cảm (auth, sheets, conversations, fb-ads, notifications, admin)** → typecheck **không bảo vệ** đúng nơi cần nhất.
+
+- **Cấm thêm mới** `@ts-nocheck` / `@ts-ignore` / `any` trong `src/app/api/**` và `src/lib/**`. Chạm vào file đang có `@ts-nocheck` ở nhóm auth/admin/sheets/conversations/fb-ads/notifications → **gỡ `@ts-nocheck` và sửa lỗi kiểu** trong cùng task (nếu lớn → báo cáo và lập kế hoạch).
+- Bật ESLint `@typescript-eslint/ban-ts-comment` (ngoại lệ có kiểm soát cho file test).
+- Script `npm run rules:check` (không thêm dependency) kiểm tra tự động, fail CI nếu vi phạm:
+  - có `@ts-nocheck`/`@ts-ignore` mới ngoài danh sách ngoại lệ,
+  - `console.log` ngoài `src/lib/debug-log.ts`,
+  - `dangerouslySetInnerHTML`, `eval(`, `new Function(`, `innerHTML =`,
+  - route trong `src/app/api/**` **không** gọi guard (`requireAuth|requireRole|requireAdmin|requireManagement`) và không nằm trong danh sách route công khai khai báo,
+  - `.ilike(`/`.or(` có nội suy chuỗi không qua `safe-search`,
+  - `NextResponse.json(` tự chế thay `api-response.ts`,
+  - `NEXT_PUBLIC_` chứa từ khóa `SECRET|KEY|TOKEN|PASSWORD` (trừ anon key được khai báo),
+  - `rejectUnauthorized:false`, `NODE_TLS_REJECT_UNAUTHORIZED`,
+  - trùng số migration, bảng mới thiếu `enable row level security`,
+  - `import ... "server-only"`/`admin.ts` bị import từ file `"use client"`.
+- CI bắt buộc: lint (0 warning) + typecheck + test + `rules:check` + `npm audit` + secret scan + CodeQL/Semgrep. Fail → không merge.
+- Pre-commit: gitleaks + lint-staged.
+
+---
+
+## 16. CHECKLIST BẢO MẬT BẮT BUỘC CHO MỖI PR
+
+**Xác thực & phiên**
+- [ ] Route/Action mới có guard đúng; không có đường vòng bỏ qua `auth-guards.ts`
+- [ ] Không lưu token ở `localStorage`; cookie `HttpOnly; Secure; SameSite`
+- [ ] Thay đổi liên quan phiên → xoay/thu hồi đúng chỗ, có audit
+
+**Phân quyền**
+- [ ] Mọi truy vấn theo ID ràng buộc chủ sở hữu/phạm vi (chống IDOR)
+- [ ] Không tin `userId/role/shopId/price/status` từ client; có `pickFields`
+- [ ] Không tự nâng quyền / không gán quyền cao hơn mình
+- [ ] Có **negative test**: thiếu token → 401, sai role → 403, đối tượng ngoài quyền → 404/403
+
+**Input & output**
+- [ ] Zod `.strict()` ở mọi biên; search qua `safe-search.ts`; sort/column allowlist
+- [ ] Không nối chuỗi vào SQL/shell/path/HTML; không `dangerouslySetInnerHTML` dữ liệu người dùng
+- [ ] Response chọn cột tường minh; không lộ hash/secret/PII thừa; lỗi qua `secure-error.ts`
+
+**Dữ liệu & bí mật**
+- [ ] Không secret/PII trong code, log, URL, response, `NEXT_PUBLIC_*`
+- [ ] Dữ liệu tuyệt mật mã hóa AES-256-GCM (IV duy nhất); khóa chỉ ở env
+- [ ] Export/xem dữ liệu nhạy cảm có kiểm tra quyền + audit + giới hạn
+
+**Hạ tầng DB**
+- [ ] Bảng mới bật RLS + policy tối thiểu; RPC `SECURITY DEFINER` có `search_path` + kiểm tra quyền + revoke/grant
+- [ ] `admin.ts` (service role) chỉ ở server, đã kiểm quyền trước khi dùng
+
+**Chống lạm dụng**
+- [ ] Endpoint nhạy cảm có rate limit (fail-closed); body/limit có trần
+- [ ] Webhook: HMAC constant-time + idempotency DB; Cron: `CRON_SECRET` + advisory lock
+
+**Chuỗi cung ứng**
+- [ ] Dependency mới đã kiểm tra; lockfile commit; `npm audit` không high/critical
+- [ ] Không còn `console.log` debug/`@ts-nocheck` mới; `rules:check` pass
+
+---
+
+## 17. ĐIỀU CẤM TUYỆT ĐỐI (SECURITY NEVER)
+- ❌ Route không guard; tự viết kiểm tra auth/role thay `auth-guards.ts`; tin role/userId từ client.
+- ❌ Lưu token/secret ở `localStorage`; cookie phiên thiếu `HttpOnly`/`Secure`.
+- ❌ JWT `alg:none`, lấy `alg` từ token, không verify `exp/iss/aud`; refresh token lưu thô/không xoay.
+- ❌ Hash mật khẩu bằng MD5/SHA*, plaintext, mã hóa 2 chiều; so sánh secret bằng `===`.
+- ❌ Nội suy input vào `.ilike()/.or()/SQL`; spread body vào insert/update; `SELECT *` trả thẳng ra client.
+- ❌ Hardcode/commit secret; secret trong `NEXT_PUBLIC_*`; log token/mật khẩu/PII.
+- ❌ `service_role` ở client hoặc dùng mà chưa kiểm quyền; bảng không RLS; policy `using (true)` cho dữ liệu nhạy cảm; view không `security_invoker`.
+- ❌ CORS `*` + credentials; tắt CSRF/Origin check; đổi trạng thái bằng GET.
+- ❌ Tắt kiểm tra TLS; fetch URL tùy ý từ người dùng không chặn SSRF.
+- ❌ Bỏ verify chữ ký webhook; cron không `CRON_SECRET`; idempotency chỉ in-memory trên prod.
+- ❌ AES-ECB/IV cố định; tự chế thuật toán mã hóa/ký.
+- ❌ Trả stack trace/SQL/tên bảng cho client; tiết lộ "user không tồn tại" ở login/reset.
+- ❌ Thêm `@ts-nocheck`/`@ts-ignore`/`any` vào route nhạy cảm; tắt lint/test/`rules:check` để "cho qua".
+- ❌ Dùng dữ liệu prod ở dev/test; chạy migration/lệnh phá hủy trên prod khi chưa được xác nhận.
+- ❌ Để AI/LLM quyết định giá, quyền, hoặc ghi dữ liệu không qua duyệt.
+- ❌ Im lặng khi phát hiện lỗ hổng — **phải báo cáo**.

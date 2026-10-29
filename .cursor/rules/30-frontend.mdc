@@ -1,0 +1,112 @@
+---
+description: Quy tắc Frontend (Next.js App Router, React, Tailwind, Radix, TanStack Table, Zustand, RHF+Zod) - UI, state, realtime, hiệu năng, a11y
+globs: src/app/**/*.tsx,src/components/**,src/hooks/**
+alwaysApply: false
+---
+
+# FRONTEND RULES — Next.js App Router + React 18
+
+> Bổ sung cho CLAUDE.md. UI text tiếng Việt. Code/comment tiếng Anh hoặc tiếng Việt không dấu.
+
+## 1. Server vs Client Components
+- Mặc định **Server Component**. Chỉ `"use client"` khi cần state, effect, sự kiện, browser API.
+- Đẩy `"use client"` xuống **lá** (component nhỏ nhất cần tương tác), không đặt ở layout/page lớn.
+- **Cấm import vào client**: `admin.ts`, mọi lib có `import "server-only"`, `pos-tag-rules.ts` (chỉ dùng `pos-tag-rules-shared.ts`), biến môi trường không `NEXT_PUBLIC_`.
+- Dữ liệu ban đầu lấy ở server (page/layout) rồi truyền xuống; client dùng để cập nhật/tương tác.
+
+## 2. Cấu trúc module
+```
+src/app/(dashboard)/<module>/
+  page.tsx        # server, mỏng
+  roles.ts        # role được phép của module
+  _components/    # UI riêng module
+  _hooks/         # hook riêng module
+  _lib/           # logic/constants riêng module
+```
+- Component dùng chung nhiều module mới đưa vào `src/components/`; còn lại giữ trong module.
+- Một component một trách nhiệm; file > ~250 dòng thì tách. Tách phần logic (hook) khỏi phần hiển thị.
+
+## 3. Phân quyền ở UI (chỉ là UX, không phải bảo mật)
+- Ẩn/disable nút theo role chỉ để trải nghiệm tốt; **server mới là nơi chặn thật**.
+- Trang mới: thêm guard ở `src/lib/page-permissions.ts` (`ROLE_PAGE_GUARDS`, prefix dài match trước) và `roles.ts` của module. Kiểm tra thứ tự prefix.
+- Không suy luận quyền từ dữ liệu client; dùng thông tin quyền do server trả về.
+
+## 4. Data fetching & state
+- Gọi API qua một **client fetch wrapper** thống nhất, hiểu format `{ success, data, error, meta? }`; xử lý lỗi/timeout/401 (đăng nhập lại) tập trung.
+- Dữ liệu từ API **parse bằng Zod** (hoặc type guard) trước khi dùng cho dữ liệu quan trọng; không ép kiểu `as`.
+- **Server state** (dữ liệu từ API) tách khỏi **UI state**. Zustand chỉ cho state UI thực sự toàn cục (bộ lọc, panel, cài đặt hiển thị) — không nhét dữ liệu server vào store rồi tự đồng bộ thủ công.
+- Tránh re-render thừa: selector nhỏ cho Zustand, `useMemo/useCallback` có chủ đích (đo trước), key ổn định cho danh sách.
+- Không lưu secret/token/PII trong `localStorage`/`sessionStorage`. Chỉ lưu tùy chọn UI không nhạy cảm; luôn bọc `try/catch` khi đọc/ghi.
+
+## 5. Bảng dữ liệu lớn (TanStack Table) — trọng tâm `/vankho`
+- Phân trang/lọc/sắp xếp **phía server** cho dữ liệu lớn; client chỉ giữ trang hiện tại.
+- Dùng **virtualization** khi hiển thị nhiều dòng; `getRowId` ổn định (id đơn), không dùng index.
+- Cột định nghĩa bằng hằng/`useMemo` ổn định để tránh render lại cả bảng.
+- Trạng thái trống / đang tải (skeleton) / lỗi (có nút thử lại) đầy đủ.
+- Thao tác hàng loạt: xác nhận, hiển thị tiến độ, xử lý kết quả từng phần (thành công một phần), không làm đơ UI.
+
+## 6. Realtime & đa tab (`/vankho`)
+- Supabase Realtime + cross-tab bus `_lib/pos-bus.ts` dùng **song song `BroadcastChannel` và `localStorage`** (tab nền bị throttle) — không thay bằng cơ chế đơn lẻ, không loại bỏ cái nào.
+- Subscribe trong `useEffect`, **cleanup khi unmount** (hủy channel, remove listener). Chống đăng ký trùng khi re-render/Strict Mode.
+- Khử trùng event (cùng `id` + `updated_at`); áp dụng cập nhật theo kiểu **idempotent** (event đến trễ/lặp không làm hỏng state).
+- Sau khi mất kết nối/đánh thức tab: **refetch/đồng bộ lại** theo mốc `updated_at`, không giả định nhận đủ event.
+- Cập nhật lạc quan (optimistic) phải có rollback khi server từ chối.
+
+## 7. Terminal status, attention flags, tag
+- **Không hardcode** danh sách terminal status trong component. Hỏi qua `lib/pos-status-config` hoặc `assignment/terminal-status.ts` (nguồn: `is_terminal`).
+- Màu/severity/label của 9 attention flags **chỉ** lấy từ `attention-constants.ts`. Component không tự định nghĩa màu/label riêng.
+- Tag cascade chạy **server-side**; client chỉ hiển thị kết quả và dùng `pos-tag-rules-shared.ts` cho logic thuần dùng chung.
+
+## 8. Thông báo (âm thanh / browser notification / banner)
+- Xin quyền Notification **khi người dùng thao tác** (không tự bật khi vào trang). Xử lý trạng thái `denied`.
+- Âm thanh: tuân thủ chính sách autoplay (cần tương tác người dùng trước); cho phép bật/tắt; chống spam (gom/giới hạn tần suất, không phát lại cho đơn đã báo).
+- Banner quá hạn: hiển thị bền cho đến khi xử lý; không chặn thao tác chính.
+
+## 9. Form
+- **React Hook Form + Zod** (`zodResolver`). Schema dùng chung với server khi có thể (file thuần, không kéo code server).
+- Validate UX ở client **và** validate lại ở server (bảo mật).
+- Chặn submit đôi (disable khi `isSubmitting`); giữ dữ liệu khi lỗi; hiển thị lỗi theo field bằng tiếng Việt, rõ nghĩa.
+- Xác nhận trước hành động nguy hiểm/không hoàn tác (xóa, đổi quyền, dọn dữ liệu) bằng dialog nêu rõ hậu quả.
+- Upload: kiểm tra size/loại ở client để báo sớm; server vẫn kiểm tra magic bytes.
+
+## 10. Hiển thị dữ liệu & an toàn
+- Không `dangerouslySetInnerHTML` với dữ liệu người dùng; nếu bắt buộc, sanitize bằng DOMPurify cấu hình chặt.
+- Link ngoài: `rel="noopener noreferrer"`; chỉ cho scheme `http/https`.
+- Ghi chú/tin nhắn của khách có thể chứa nội dung độc: luôn render dạng text (React tự escape).
+- Che một phần dữ liệu nhạy cảm (sđt) khi role không cần xem đầy đủ — việc che thực hiện **ở server**, client chỉ hiển thị.
+- Định dạng: tiền VND (`Intl.NumberFormat("vi-VN")`, số nguyên), ngày giờ theo múi giờ `Asia/Ho_Chi_Minh`/`Asia/Bangkok` rõ ràng; dữ liệu gốc là UTC.
+
+## 11. UI/UX & thiết kế
+- Dùng Radix UI + Tailwind theo **design token** (màu, spacing, radius, font) nhất quán; không rải giá trị tùy ý (`#abc`, `w-[123px]`) khi đã có token.
+- **Mobile-first**, kiểm tra 360 / 768 / 1280px. Bảng rộng có cuộn ngang hợp lý hoặc dạng thẻ trên mobile.
+- Đủ trạng thái: loading (skeleton), empty (hướng dẫn hành động), error (thử lại), success (Sonner toast ngắn gọn), disabled.
+- Thông báo lỗi/toast bằng **tiếng Việt**, nói rõ chuyện gì đã xảy ra và cách xử lý; không hiện lỗi kỹ thuật thô.
+- Dark mode (nếu có): dùng biến CSS/token, không hardcode màu.
+- Biểu đồ (Recharts): có nhãn trục, đơn vị, tooltip, màu đủ tương phản và **không chỉ dựa vào màu** để phân biệt; xử lý dữ liệu rỗng.
+
+## 12. Accessibility (WCAG 2.2 AA)
+- HTML ngữ nghĩa; mọi input có `label`; nút icon có `aria-label`; ảnh có `alt`.
+- Điều hướng bằng bàn phím đầy đủ; focus nhìn thấy rõ; Radix Dialog/Menu giữ focus trap + đóng bằng `Esc`.
+- Tương phản ≥ 4.5:1; tôn trọng `prefers-reduced-motion`.
+- Thông báo động (toast, banner) dùng `role="status"`/`aria-live` phù hợp.
+
+## 13. Hiệu năng (Core Web Vitals)
+- Mục tiêu: LCP < 2.5s, INP < 200ms, CLS < 0.1.
+- `next/image` cho ảnh; `next/font` cho font; lazy load (`dynamic import`) cho phần nặng (Recharts, editor Sheets, PDF viewer).
+- Theo dõi bundle: không thêm thư viện nặng khi đủ dùng code nhỏ; import theo đường dẫn con khi thư viện hỗ trợ.
+- Tránh waterfall request; fetch song song; không fetch trong vòng lặp render.
+- Debounce ô tìm kiếm; hủy request cũ (`AbortController`) khi nhập tiếp.
+
+## 14. Test frontend
+- Vitest + Testing Library: test hành vi người dùng (render, tương tác, trạng thái lỗi/trống), không test chi tiết cài đặt.
+- Bắt buộc test cho: logic hiển thị flag/terminal status, form quan trọng, hook realtime/bus (cleanup, khử trùng, reconcile), phân quyền hiển thị.
+- Query theo role/label/text (accessible queries), không theo class CSS.
+
+## 15. Checklist trước khi xong việc có đụng frontend
+- [ ] Không import code server-only/`admin.ts` vào client
+- [ ] Không hardcode terminal status/màu/label attention
+- [ ] Đủ loading/empty/error/success; text tiếng Việt
+- [ ] Form: RHF+Zod, chặn submit đôi, xác nhận hành động nguy hiểm
+- [ ] Hook realtime có cleanup + khử trùng + reconcile
+- [ ] Responsive 360/768/1280; a11y cơ bản (label, focus, tương phản)
+- [ ] Không có `console.log`, `any`, dead code; lint (0 warning) + typecheck + test pass

@@ -1,0 +1,87 @@
+---
+description: Quy tắc Database (Supabase Postgres) - migration, schema, RLS, RPC, index, view, realtime, storage
+globs: supabase/**,src/lib/supabase/**,**/*.sql
+alwaysApply: false
+---
+
+# DATABASE RULES — Supabase Postgres
+
+> Bổ sung cho CLAUDE.md. Schema = `supabase/migrations/` là nguồn sự thật duy nhất. Không ORM: chỉ Supabase JS client + RPC.
+
+## 1. Migration
+- Mỗi thay đổi schema = **1 file migration mới**, số thứ tự **lớn hơn số cao nhất hiện có** (hiện 327). Không đổi tên, sửa, xóa, đánh lại số migration cũ.
+- **Mọi thay đổi dữ liệu phải nằm trong file migration, chạy qua `apply_migration`.** Không chạy SQL thủ công ngoài migration — repo và DB sẽ lệch nhau, mất đường audit/rollback. Cẩn trọng `UPDATE` nhiều cột: điều kiện `OR` giữa các cột sẽ NULL cả những cột không liên quan (sự cố 2026‑10‑27 ở `order_sheets` → migration 323).
+- Một migration = một mục đích. Tên: `<số>_<mo_ta_ngan_snake_case>.sql`.
+- Viết **idempotent khi hợp lý**: `create table if not exists`, `add column if not exists`, `create index if not exists`, `drop policy if exists` trước `create policy`.
+- Triển khai an toàn (expand → migrate → contract):
+  1. Thêm cột/bảng mới (nullable hoặc có default), deploy code đọc cả hai.
+  2. Backfill theo **lô nhỏ**, không khóa bảng lớn.
+  3. Thêm `NOT NULL`/`UNIQUE`/FK (dùng `NOT VALID` rồi `VALIDATE CONSTRAINT` cho bảng lớn).
+  4. Xóa cột/bảng cũ ở migration sau, khi không còn code dùng.
+- Tạo index trên bảng lớn: `create index concurrently` (không đặt trong transaction).
+- Mỗi migration phải có ghi chú đầu file: mục đích, ảnh hưởng, cách rollback (viết tay nếu không tự động được).
+- Sau khi áp dụng: **sinh lại `src/lib/supabase/database.types.ts`**, không sửa tay.
+- Thử migration trên DB branch/staging trước. Không chạy thẳng lên prod. AI không tự chạy migration lên môi trường thật.
+
+## 2. Thiết kế bảng
+- PK: `uuid` (`gen_random_uuid()`), trừ bảng mapping bắt buộc dùng khóa tự nhiên từ hệ thống ngoài (vd. `(shop_id, pancake_order_id)` là UNIQUE riêng).
+- Ràng buộc đặt **ở DB**, không chỉ ở code: `NOT NULL`, `UNIQUE`, `CHECK`, FK với `ON DELETE` có chủ đích (`RESTRICT` mặc định; `CASCADE` chỉ cho dữ liệu con thuần túy).
+- **Tiền**: VND không có phần thập phân → dùng `bigint` (đơn vị đồng) hoặc `numeric(18,0)`. Không dùng `float/real/double`. Tiền tệ khác (nếu có) dùng `numeric(18,4)` + cột `currency`.
+- **Thời gian**: luôn `timestamptz`, lưu UTC. Cột chuẩn: `created_at default now()`, `updated_at` (trigger tự cập nhật).
+- **Trạng thái do ADMIN tự định nghĩa** (vd. `pos_internal_status_config`): dùng bảng cấu hình + `text`, **không dùng Postgres ENUM** (khó đổi). Ràng buộc bằng FK về bảng config.
+- `jsonb` chỉ cho payload thô/cấu hình linh hoạt; cột dùng để lọc/join/sắp xếp phải là cột thật có index.
+- Cột nhạy cảm (sđt, địa chỉ, token, TOTP secret, nội dung tin nhắn): ghi chú rõ, không trả ra API ngoài nhu cầu, token/secret/tin nhắn **mã hóa ở tầng ứng dụng**.
+- Xóa mềm (`deleted_at`) chỉ khi có lý do nghiệp vụ; mọi truy vấn và unique index phải tính đến `deleted_at is null` (dùng partial unique index).
+
+## 3. RLS (Row Level Security)
+- **Mọi bảng trong schema `public` phải bật RLS** (`alter table ... enable row level security`). Bảng không có policy = không ai (ngoài service role) truy cập được — đó là mặc định an toàn.
+- Policy viết rõ theo từng lệnh (`select/insert/update/delete`) và theo role; `update` luôn có cả `using` và `with check`.
+- Lấy danh tính qua `(select auth.uid())` (bọc subquery để Postgres cache, tăng hiệu năng).
+- Logic quyền phức tạp → đặt vào hàm helper `stable`, `security definer`, `set search_path = ''`/`public`, tránh đệ quy policy.
+- **Service role (`admin.ts`) bypass RLS** → code server dùng nó phải tự kiểm tra quyền trước. RLS là lớp phòng thủ thứ hai, không thay thế `auth-guards.ts`.
+- Bảng nhật ký/audit: **append-only** — chỉ policy `insert`, không có `update/delete` cho role ứng dụng.
+- Mỗi bảng mới có test hoặc ít nhất kịch bản kiểm tra tay: role A không thấy/sửa được dữ liệu ngoài quyền; anon không đọc được gì.
+
+## 4. RPC / Function / Trigger
+- `SECURITY DEFINER` chỉ khi thật sự cần; luôn `set search_path` cố định; kiểm tra quyền của người gọi **bên trong** hàm; không tin tham số; `revoke execute ... from public, anon` rồi `grant` đúng role.
+- Thao tác nhiều bước (gán đơn, claim webhook, đối soát) → đóng gói trong **một RPC/transaction**, không gọi nhiều request rời từ app.
+- **Advisory lock**: dùng `pg_try_advisory_xact_lock(key)` (tự nhả khi hết transaction). Khóa key phải ổn định, có namespace (vd. hash của `'pos-poll-new'` + shop_id). Cron: không lấy được lock → thoát im lặng, không lỗi.
+- Idempotency webhook: chỉ dùng `fn_claim_webhook_event` / `fn_release_webhook_event` / `fn_complete_webhook_event` trên `pos_webhook_inbox` (unique `(provider, event_id)`). Không tạo cơ chế song song.
+- Trigger: ngắn, không gọi mạng, không chứa logic nghiệp vụ nặng. Cẩn thận vòng lặp trigger (nhất là tag cascade).
+- Hàm có tham số vị trí quan trọng → dùng tham số đặt tên, tránh nhầm khi đổi chữ ký. Đổi chữ ký RPC = migration mới + cập nhật code gọi + sinh lại types.
+
+## 5. Index & hiệu năng
+- Index cho mọi cột dùng ở `WHERE/JOIN/ORDER BY` thường xuyên; thứ tự cột trong index composite theo độ chọn lọc + thứ tự sắp xếp. Kiểm tra bằng `EXPLAIN (ANALYZE, BUFFERS)` trên dữ liệu đủ lớn.
+- Ưu tiên **partial index** cho tập trạng thái hẹp (vd. đơn chưa terminal, chưa gán nhân viên).
+- Tìm kiếm văn bản (`ilike`) trên bảng lớn → `pg_trgm` + GIN index. Search từ user vẫn phải qua `safe-search.ts` ở tầng app.
+- Phân trang: **keyset/cursor** cho bảng lớn (đơn hàng, log), không `offset` sâu. Luôn giới hạn `limit` tối đa phía server.
+- Batch: dùng `upsert ... on conflict` và chia lô (chunk) hợp lý; tránh vòng lặp N+1 request.
+- Đặt `statement_timeout` hợp lý cho role ứng dụng; truy vấn báo cáo nặng đẩy sang view/materialized view hoặc job nền.
+- Không `SELECT *` trong code production; chọn cột cần thiết.
+
+## 6. View & Materialized view
+- View đọc dữ liệu có RLS → tạo với `security_invoker = true` (Postgres 15+) để RLS của bảng gốc có hiệu lực; nếu không, view chạy với quyền chủ sở hữu và **có thể lộ dữ liệu**.
+- Views `pos_assignment_*` (analytics gán đơn) phụ thuộc cột bảng đơn/nhân viên: **đổi schema bảng nguồn phải kiểm tra và cập nhật các view này** trong cùng migration.
+- Materialized view: có kế hoạch refresh (`refresh materialized view concurrently` cần unique index) và ghi rõ độ trễ chấp nhận được.
+
+## 7. Realtime
+- Chỉ thêm vào publication `supabase_realtime` những bảng thật sự cần đẩy realtime (đơn hàng, thông báo...). RLS vẫn áp dụng cho Realtime — policy `select` phải đúng.
+- Payload nhỏ; không đưa cột nặng/nhạy cảm vào luồng realtime nếu client không cần.
+- Client phải **reconcile sau khi mất kết nối** (refetch theo checkpoint/`updated_at`), không giả định nhận đủ mọi event.
+
+## 8. Storage
+- Bucket mặc định **private**; truy cập qua signed URL ngắn hạn. Policy storage theo role/đường dẫn.
+- Giới hạn kích thước + MIME ở bucket; kiểm tra magic bytes ở server khi upload. Tên object ngẫu nhiên, không dùng tên file gốc làm path.
+
+## 9. Vòng đời & vận hành dữ liệu
+- Bảng tăng nhanh (`pos_webhook_inbox`, log polling, audit, notifications) phải có **chính sách giữ lại (retention)** + job dọn theo lô; cân nhắc partition theo tháng khi lớn.
+- Backup/PITR bật trên Supabase; có kiểm thử khôi phục định kỳ. Không dùng dữ liệu prod để dev/test trừ khi đã ẩn danh.
+- `data-cleanup` (admin): bắt buộc **dry-run trước**, giới hạn số dòng, chạy theo lô, ghi `logAudit()`, xác nhận 2 bước, giữ bản sao/ bảng lưu trữ khi xóa dữ liệu nghiệp vụ.
+
+## 10. Checklist trước khi xong việc có đụng DB
+- [ ] Migration đúng số thứ tự, idempotent, có ghi chú rollback
+- [ ] Bảng mới có RLS + policy + index + `created_at/updated_at`
+- [ ] RPC mới: `search_path`, kiểm tra quyền, `revoke/grant` đúng
+- [ ] Views `pos_assignment_*` và code phụ thuộc đã được rà soát
+- [ ] Đã sinh lại `database.types.ts`
+- [ ] Đã thử trên staging/branch; truy vấn chính đã `EXPLAIN`
