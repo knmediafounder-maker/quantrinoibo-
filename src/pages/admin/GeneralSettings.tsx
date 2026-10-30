@@ -12,7 +12,7 @@ export default function GeneralSettings() {
   const [dept, setDept] = useState(departments[0]?.code ?? 'sale')
   const [s, setS] = useState<DeptSettings>(deptSetting(dept))
   const [shifts, setShifts] = useState<Shift[]>(settings?.shifts?.length ? settings.shifts : DEFAULT_SHIFTS)
-  const [regTime, setRegTime] = useState((settings?.schedule_reg_time ?? '11:00').slice(0, 5))
+  const [regTime, setRegTime] = useState((settings?.schedule_reg_time ?? '18:00').slice(0, 5))
   const [shiftMsg, setShiftMsg] = useState('')
   const [msg, setMsg] = useState('')
   const [error, setError] = useState('')

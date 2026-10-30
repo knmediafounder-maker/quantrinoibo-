@@ -54,7 +54,7 @@ export default function Schedule() {
   const { profile, people, settings, viewDepts, manageDepts, departments, deptName } = useAuth()
   const me = profile!
   const shifts = settings?.shifts?.length ? settings.shifts : DEFAULT_SHIFTS
-  const regTime = settings?.schedule_reg_time ?? '11:00'
+  const regTime = settings?.schedule_reg_time ?? '18:00'
   const [params, setParams] = useSearchParams()
   const [week, setWeek] = useState(() => monday(params.get('tuan') || dayjs(todayVN()).add(7, 'day').format('YYYY-MM-DD')))
   const deptOptions = me.role === 'admin' ? departments.map((d) => d.code) : [...new Set([me.department, ...viewDepts].filter(Boolean) as string[])]
@@ -122,14 +122,14 @@ export default function Schedule() {
   )
 }
 
-/** Các bước của tuần: đăng ký → leader xếp, chốt → sửa tự do đến 24:00 CN → sau đó ghi chú thay đổi */
+/** Các bước của tuần: đăng ký → leader xếp, chốt → mở lại / sửa tự do đến 23:59 CN → sau đó ghi chú thay đổi */
 function Timeline({ locked, lockedAt, t }: { locked: boolean; lockedAt: string | null; t: ReturnType<typeof weekTimes> }) {
   const now = dayjs()
   const step = locked ? (now.isBefore(t.freeUntil) ? 2 : 3) : now.isBefore(t.regDeadline) ? 0 : 1
   const steps = [
     { title: 'Nhân viên gửi đăng ký', sub: `Trước ${t.regDeadline.format('HH:mm')} CN ${t.regDeadline.format('DD/MM')}` },
-    { title: 'Leader xếp & chốt lịch', sub: locked ? `Đã chốt ${fmtDateTime(lockedAt)}` : 'Chưa chốt' },
-    { title: 'Leader sửa tự do', sub: `Đến 24:00 CN ${dayjs(t.sunday).format('DD/MM')}` },
+    { title: 'Leader xếp & chốt lịch', sub: locked ? `Đã chốt ${fmtDateTime(lockedAt)}` : `Chưa chốt · chốt được sau ${t.regDeadline.format('HH:mm')} CN` },
+    { title: 'Leader mở lại để chỉnh', sub: `Đến 23:59 CN ${dayjs(t.sunday).format('DD/MM')}, rồi chốt lại` },
     { title: 'Thay đổi có ghi chú', sub: 'Nghỉ phép, bù ca, đổi ca đều hiện trong lịch' },
   ]
   return (
@@ -150,9 +150,11 @@ function Timeline({ locked, lockedAt, t }: { locked: boolean; lockedAt: string |
 }
 
 /** Lưới 7 ngày × 3 ca dùng chung cho đăng ký nghỉ và xin nghỉ */
-function SlotGrid({ days, shifts, selected, onToggle, disabled, mark, onLabel, offLabel }: {
+function SlotGrid({ days, shifts, selected, onToggle, disabled, mark, onLabel, offLabel, label, today }: {
   days: string[]; shifts: Shift[]; selected: Set<string>; onToggle: (d: string, s: number) => void
   disabled?: (d: string, s: number) => boolean; mark?: (d: string, s: number) => boolean; onLabel: string; offLabel: string
+  /** Chữ riêng cho ô không chọn (vd ô không có ca) */
+  label?: (d: string, s: number) => string | undefined; today?: string
 }) {
   const toggleDay = (d: string) => {
     const avail = shifts.map((_, i) => i + 1).filter((s) => !disabled?.(d, s))
@@ -167,8 +169,8 @@ function SlotGrid({ days, shifts, selected, onToggle, disabled, mark, onLabel, o
             <th className="w-24" />
             {days.map((d, i) => (
               <th key={d} className="text-center text-xs font-medium text-muted">
-                <button type="button" className="rounded-lg px-2 py-1 hover:bg-sand/60" onClick={() => toggleDay(d)} title="Chọn / bỏ cả ngày">
-                  {DOW[i]}<div className="text-ink">{fmtDate(d).slice(0, 5)}</div>
+                <button type="button" className={`rounded-lg px-2 py-1 hover:bg-sand/60 ${d === today ? 'text-clay-dark' : ''}`} onClick={() => toggleDay(d)} title="Chọn / bỏ cả ngày">
+                  {d === today ? 'Hôm nay' : DOW[i]}<div className="text-ink">{fmtDate(d).slice(0, 5)}</div>
                 </button>
               </th>
             ))}
@@ -185,7 +187,7 @@ function SlotGrid({ days, shifts, selected, onToggle, disabled, mark, onLabel, o
                   <td key={d}>
                     <button type="button" disabled={dis} onClick={() => onToggle(d, si + 1)}
                       className={`relative h-11 w-full rounded-lg border text-xs transition ${on ? 'border-rose bg-rose-light font-medium text-rose-dark' : 'border-line bg-white text-muted hover:bg-cream'} disabled:cursor-not-allowed disabled:opacity-40`}>
-                      {on ? onLabel : offLabel}
+                      {on ? onLabel : label?.(d, si + 1) ?? offLabel}
                       {mark?.(d, si + 1) && <span className="absolute right-1 top-1 h-1.5 w-1.5 rounded-full bg-sage" />}
                     </button>
                   </td>
@@ -378,8 +380,19 @@ function Planner({ dept, days, shifts, members, data, week, t, onSaved }: {
     setMsg(lock ? 'Đã chốt lịch và báo cho cả phòng' : locked ? 'Đã lưu — người có ca thay đổi được báo' : 'Đã lưu nháp')
     onSaved()
   }
+  async function reopen() {
+    if (dirty && !confirm('Có thay đổi chưa lưu sẽ bị bỏ. Vẫn mở lại lịch?')) return
+    setBusy(true)
+    const { error } = await supabase.rpc('set_schedule_status', { p_dept: dept, p_week: week, p_lock: false })
+    setBusy(false)
+    if (error) return setErr(errMsg(error))
+    setErr('')
+    setMsg('Đã mở lại lịch — chỉnh xong bấm Chốt lịch để chốt lại')
+    onSaved()
+  }
+  const canReopen = locked && dayjs().isBefore(t.freeUntil)
   const count = (d: string, s: number) => members.filter((m) => cells.has(key(m.id, d, s))).length
-  const regOpen = dayjs().isBefore(t.regDeadline)
+  const regOpen = !locked && dayjs().isBefore(t.regDeadline)
   const submitted = members.filter((m) => subOf(m.id)).length
 
   return (
@@ -389,7 +402,10 @@ function Planner({ dept, days, shifts, members, data, week, t, onSaved }: {
         <button className="btn-ghost" onClick={() => setCells(new Set())}>Xóa hết</button>
         <span className="ml-auto flex flex-wrap gap-2">
           {locked
-            ? <button className="btn-primary" disabled={busy || !dirty} onClick={() => save()}><Icon name="save" /> Lưu thay đổi</button>
+            ? <>
+              {canReopen && <button className="btn-secondary" disabled={busy} onClick={reopen}><Icon name="lock_open" /> Mở lại để chỉnh</button>}
+              <button className="btn-primary" disabled={busy || !dirty} onClick={() => save()}><Icon name="save" /> Lưu thay đổi</button>
+            </>
             : <>
               <button className="btn-secondary" disabled={busy || !dirty} onClick={() => save()}>Lưu nháp</button>
               <button className="btn-primary" disabled={busy || regOpen} onClick={() => save(true)}
@@ -409,7 +425,7 @@ function Planner({ dept, days, shifts, members, data, week, t, onSaved }: {
           {needNote ? <>
             Đã qua 24:00 Chủ nhật — mọi thay đổi sẽ được ghi vào lịch kèm ghi chú.
             <input className="input mt-2" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ghi chú lý do thay đổi (bắt buộc)" />
-          </> : <>Lịch đã chốt. Được sửa tự do đến 24:00 CN {dayjs(t.sunday).format('DD/MM')}; người có ca thay đổi tự nhận thông báo.</>}
+          </> : <>Lịch đã chốt. Đến 23:59 CN {dayjs(t.sunday).format('DD/MM')} bạn được <b>mở lại</b> về chưa chốt để chỉnh rồi chốt lại (hoặc sửa thẳng và lưu); người có ca thay đổi tự nhận thông báo.</>}
         </div>
       )}
       <div className="mb-3 flex flex-wrap gap-3 text-xs text-muted">
@@ -614,7 +630,7 @@ function Leaves({ dept, canManage, data, shifts, members, onChanged }: {
   )
 }
 
-/** Các ca mình đang có trong lịch đã chốt, từ hôm nay đến hết tuần (thêm tuần sau nếu đã chốt) — tích ca muốn nghỉ */
+/** Bảng cả tuần (tuần này, thêm tuần sau nếu đã chốt): chỉ bấm được các ca mình đang có từ hôm nay — chọn ca muốn nghỉ */
 function LeaveForm({ dept, shifts, pendingMine, onSent }: { dept: string; shifts: Shift[]; pendingMine: LeaveRequest[]; onSent: () => void }) {
   const { profile } = useAuth()
   const today = todayVN()
@@ -631,12 +647,16 @@ function LeaveForm({ dept, shifts, pendingMine, onSent }: { dept: string; shifts
         .lte('day', dayjs(nextWeek).add(6, 'day').format('YYYY-MM-DD')).order('day').order('shift')) as Promise<ShiftAssignment[]>,
     ])
     const locked = new Set(weeks.filter((w) => w.status === 'locked').map((w) => w.week_start))
-    return { thisLocked: locked.has(thisWeek), slots: asg.filter((a) => locked.has(monday(a.day))) }
+    return { locked, slots: asg.filter((a) => locked.has(monday(a.day))) }
   }, [dept, pendingMine.length])
+  const weeks = [thisWeek, nextWeek].filter((w) => mine.data?.locked.has(w))
+  const [pick, setPick] = useState<string | null>(null)
+  const wk = pick && weeks.includes(pick) ? pick : weeks[0]
+  const days = Array.from({ length: 7 }, (_, i) => dayjs(wk).add(i, 'day').format('YYYY-MM-DD'))
   const waiting = new Set(pendingMine.flatMap((l) => l.slots.map((x) => slotKey(x.d, x.s))))
-  const byDay = new Map<string, ShiftAssignment[]>()
-  for (const a of mine.data?.slots ?? []) byDay.set(a.day, [...(byDay.get(a.day) ?? []), a])
-  const toggle = (k: string) => setSel((x) => { const n = new Set(x); if (n.has(k)) n.delete(k); else n.add(k); return n })
+  const have = new Set((mine.data?.slots ?? []).map((a) => slotKey(a.day, a.shift)))
+  const label = (d: string, s: number) => waiting.has(slotKey(d, s)) ? 'Chờ duyệt' : have.has(slotKey(d, s)) ? 'Đi làm' : d < today ? '—' : 'Không có ca'
+  const toggle = (d: string, s: number) => setSel((x) => { const n = new Set(x); const k = slotKey(d, s); if (n.has(k)) n.delete(k); else n.add(k); return n })
 
   async function submit(e: FormEvent) {
     e.preventDefault()
@@ -652,35 +672,32 @@ function LeaveForm({ dept, shifts, pendingMine, onSent }: { dept: string; shifts
   }
 
   if (mine.loading && !mine.data) return <Spinner />
-  if (!byDay.size) {
+  if (!weeks.length) {
     return (
       <p className="text-sm text-muted">
-        {mine.data?.thisLocked ? 'Bạn không còn ca nào trong tuần này.' : 'Lịch tuần này chưa chốt nên chưa xin nghỉ được.'}{' '}
-        Muốn nghỉ ở tuần sau thì đánh dấu khi đăng ký lịch (trước hạn Chủ nhật).
+        Lịch tuần này chưa chốt nên chưa xin nghỉ được. Muốn nghỉ ở tuần sau thì đánh dấu khi đăng ký lịch (trước hạn Chủ nhật).
       </p>
     )
   }
   return (
     <form onSubmit={submit} className="space-y-4">
-      <p className="text-sm text-muted">Tích các ca muốn nghỉ trong lịch của bạn:</p>
-      <div className="space-y-2">
-        {[...byDay.entries()].map(([d, list]) => (
-          <div key={d} className="flex flex-wrap items-center gap-2">
-            <span className={`w-20 text-sm ${d === today ? 'font-medium text-clay-dark' : 'text-ink'}`}>{d === today ? 'Hôm nay' : dayLabel(d)}</span>
-            {list.map((a) => {
-              const k = slotKey(a.day, a.shift)
-              const on = sel.has(k)
-              const wait = waiting.has(k)
-              return (
-                <button type="button" key={k} disabled={wait} onClick={() => toggle(k)}
-                  className={`rounded-lg border px-3 py-1.5 text-xs transition ${on ? 'border-rose bg-rose-light font-medium text-rose-dark' : 'border-line bg-white text-ink-soft hover:bg-cream'} disabled:cursor-not-allowed disabled:opacity-50`}>
-                  {on && '✓ '}{shifts[a.shift - 1]?.name} <span className="text-muted">{shifts[a.shift - 1]?.start}</span>{wait && ' · đang chờ duyệt'}
-                </button>
-              )
-            })}
-          </div>
-        ))}
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="text-sm text-muted">Bấm vào ô ca bạn <b>muốn nghỉ</b> (bấm tên thứ để chọn cả ngày). Chỉ chọn được ca bạn đang đi làm, từ hôm nay.</p>
+        {weeks.length > 1 && (
+          <span className="ml-auto flex gap-1 rounded-xl border border-line bg-white p-1">
+            {weeks.map((w) => (
+              <button type="button" key={w} onClick={() => setPick(w)}
+                className={`rounded-lg px-2.5 py-1 text-xs ${w === wk ? 'bg-clay text-white' : 'text-muted hover:bg-cream'}`}>
+                {w === thisWeek ? 'Tuần này' : 'Tuần sau'} {fmtDate(w).slice(0, 5)}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
+      <SlotGrid days={days} shifts={shifts} selected={sel} onToggle={toggle} today={today}
+        disabled={(d, s) => d < today || !have.has(slotKey(d, s)) || waiting.has(slotKey(d, s))}
+        label={label} onLabel="✓ Nghỉ" offLabel="" />
+      {sel.size > 0 && <div className="text-sm"><SlotList slots={[...sel].sort().map((k) => { const [d, s] = k.split('|'); return { d, s: Number(s) } })} shifts={shifts} /></div>}
       {sel.size > 0 && <>
         <Field label="Lý do *"><textarea className="input" rows={2} required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         <ErrorText error={err} />
