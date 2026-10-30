@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-do
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { ROLE_LABEL, vn } from '../lib/format'
-import { Avatar, Icon } from './ui'
+import { Avatar, ErrorBoundary, Icon } from './ui'
 
 function useUnreadCount(uid: string | undefined) {
   const [count, setCount] = useState(0)
@@ -142,7 +142,7 @@ export default function Layout() {
           </div>
         </div>
         <main className="mx-auto max-w-[1360px] px-4 pb-12 pt-2 lg:px-8">
-          <Outlet />
+          <ErrorBoundary key={loc.pathname}><Outlet /></ErrorBoundary>
         </main>
       </div>
     </div>

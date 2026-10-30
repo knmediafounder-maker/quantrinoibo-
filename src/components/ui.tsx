@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
+import { Component, useEffect, useId, useState, type ReactNode } from 'react'
 import { Area, AreaChart, ResponsiveContainer } from 'recharts'
 
 export function Icon({ name, className = '' }: { name: string; className?: string }) {
@@ -198,4 +198,20 @@ export async function must<T>(q: PromiseLike<{ data: T | null; error: { message:
   const { data, error } = await q
   if (error) throw new Error(error.message)
   return data as T
+}
+
+/** Một màn hình bị lỗi thì chỉ màn hình đó báo lỗi, phần còn lại của web vẫn dùng được */
+export class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
+  state = { error: null as Error | null }
+  static getDerivedStateFromError(error: Error) { return { error } }
+  render() {
+    if (!this.state.error) return this.props.children
+    return (
+      <div className="card mx-auto mt-10 max-w-lg p-6 text-center">
+        <p className="font-medium text-ink">Màn hình này gặp lỗi.</p>
+        <p className="mt-1 text-sm text-muted">{this.state.error.message}</p>
+        <button className="btn-secondary mt-4" onClick={() => location.reload()}>Tải lại trang</button>
+      </div>
+    )
+  }
 }

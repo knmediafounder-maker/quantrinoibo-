@@ -27,6 +27,12 @@ function AdminOnly({ children }: { children: ReactNode }) {
   return profile?.role === 'admin' ? <>{children}</> : <Navigate to="/" replace />
 }
 
+/** Trang riêng của một phòng: người của phòng đó hoặc người được quyền xem phòng đó */
+function DeptOnly({ dept, children }: { dept: string; children: ReactNode }) {
+  const { profile, viewDepts } = useAuth()
+  return profile?.department === dept || viewDepts.includes(dept) ? <>{children}</> : <Navigate to="/" replace />
+}
+
 function NotConfigured() {
   return (
     <div className="mx-auto mt-24 max-w-xl card p-6">
@@ -58,9 +64,9 @@ export default function App() {
         <Route index element={<Home />} />
         <Route path="viec" element={<Tasks />} />
         <Route path="viec/:id" element={<TaskDetail />} />
-        <Route path="don-cua-toi" element={<SaleOrders />} />
-        <Route path="hang-doi-giao" element={<ShipQueue />} />
-        <Route path="quang-cao" element={<AdsPerformance />} />
+        <Route path="don-cua-toi" element={<DeptOnly dept="sale"><SaleOrders /></DeptOnly>} />
+        <Route path="hang-doi-giao" element={<DeptOnly dept="van_don"><ShipQueue /></DeptOnly>} />
+        <Route path="quang-cao" element={<DeptOnly dept="marketing"><AdsPerformance /></DeptOnly>} />
         <Route path="don-van-de" element={<Issues />} />
         <Route path="lich-lam-viec" element={<Schedule />} />
         <Route path="chia-se" element={<Share />} />

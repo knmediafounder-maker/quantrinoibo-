@@ -10,6 +10,9 @@ import { PeriodPicker, loadPeople, rangeLabel, usePeriod } from '../components/K
 import { EMPTY_FILTER, OrderFilterBar, OrderModal, OrderTable, applyFilter, byKeys, shipPriority, useOrderSearch } from '../components/Orders'
 import { fmtMetric, fmtMetricShort } from '../lib/kpi'
 
+/** Số đơn tối đa Supabase trả về mỗi lần */
+const LIMIT = 1000
+
 type View = 'queue' | 'from_sale' | 'to_sale' | 'unassigned' | 'done' | 'cod'
 
 /** Hàng đợi giao (Vận đơn): đơn được chia, sắp xếp theo thứ tự nên xử lý */
@@ -37,16 +40,22 @@ export default function ShipQueue() {
     // Đơn đang trao đổi với Sale (có thể đã qua trạng thái đang giao)
     let hq = supabase.from('orders').select('*').not('handoff_to', 'is', null).not('shipper_id', 'is', null)
     let cq = supabase.from('orders').select('*').gt('cod_down', 0).gte('order_date', range.from).lte('order_date', range.to)
+    // Đếm trên máy chủ: danh sách chỉ tải tối đa 1.000 đơn (giới hạn của Supabase) nhưng số liệu vẫn đúng
+    const head = () => supabase.from('orders').select('id', { count: 'exact', head: true })
+    const count = (f: (b: ReturnType<typeof head>) => ReturnType<typeof head>) => f(mine ? head().eq('shipper_id', mine) : head()).then((r) => r.count ?? 0)
     if (mine) { q = q.eq('shipper_id', mine); dq = dq.eq('shipper_id', mine); hq = hq.eq('shipper_id', mine); cq = cq.eq('shipper_id', mine) }
-    const [shipping, deliveredToday, handoffs, codDown, month] = await Promise.all([
-      must(q.order('sent_at', { ascending: true }).limit(2000)) as Promise<Order[]>,
-      must(dq.limit(2000)) as Promise<Order[]>,
+    const [shipping, deliveredToday, handoffs, codDown, month, nShipping, nUnassigned, nDelivered] = await Promise.all([
+      must(q.order('sent_at', { ascending: true }).limit(LIMIT)) as Promise<Order[]>,
+      must(dq.limit(LIMIT)) as Promise<Order[]>,
       must(hq.limit(500)) as Promise<Order[]>,
       must(cq.order('order_date', { ascending: false }).limit(1000)) as Promise<Order[]>,
       loadPeople(range, 'van_don'),
+      count((b) => b.eq('status', 2)),
+      count((b) => b.eq('status', 2).is('shipper_id', null)),
+      count((b) => b.in('status', [3, 16]).gte('delivered_at', startToday)),
     ])
     const raw = who ? month.find((r) => r.user_id === who)?.raw : sumRaw(month.map((r) => r.raw))
-    return { shipping, deliveredToday, handoffs, codDown, monthRate: kpiValue(raw ?? {}, 'delivery_rate') }
+    return { shipping, deliveredToday, handoffs, codDown, nShipping, nUnassigned, nDelivered, monthRate: kpiValue(raw ?? {}, 'delivery_rate') }
   }, [who, range.from, range.to])
 
   const list = useMemo(() => {
@@ -89,8 +98,8 @@ export default function ShipQueue() {
 
       {data.loading || !data.data ? <Spinner /> : <>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <Stat label="Đơn đang phụ trách" icon="inventory_2" color="sky" value={shipping.length} hint={`${shipping.filter((o) => !o.shipper_id).length} đơn chưa chia`} />
-          <Stat label="Giao thành công hôm nay" icon="task_alt" color="sage" value={data.data.deliveredToday.length} />
+          <Stat label="Đơn đang phụ trách" icon="inventory_2" color="sky" value={data.data.nShipping} hint={`${data.data.nUnassigned} đơn chưa chia`} />
+          <Stat label="Giao thành công hôm nay" icon="task_alt" color="sage" value={data.data.nDelivered} />
           <Stat label="Đơn sắp đến hạn hoàn" icon="alarm" color="rose" value={dueSoon} tone={dueSoon ? 'bad' : undefined} hint={`Còn ≤ ${warn} ngày`} />
           <Stat label="Sale gửi cần xử lý" icon="swap_horiz" color="plum" value={fromSale} hint="Yêu cầu đang chờ Vận đơn" />
           <Stat label={`Tỷ lệ giao thành công · ${rangeLabel(range)}`} icon="verified" color="sage" value={fmtMetric('delivery_rate', data.data.monthRate)} hint="Giao thành công ÷ đơn đã gửi" />
@@ -112,6 +121,7 @@ export default function ShipQueue() {
             {found ? 'Kết quả tìm theo mã trên mọi ngày (không theo tab đang chọn).'
               : view === 'cod' ? `Đơn đã nhận có tiền thu hộ thấp hơn lúc gửi, chốt trong ${rangeLabel(range)}. Tổng hạ ${fmtMetricShort('cod_down_amt', codAmt)}.`
               : 'Sắp đến hạn hoàn → Sale gửi sang → nguy cơ hoàn rất cao → đã giao thất bại → giá trị cao → còn lại.'}
+            {!found && shipping.length >= LIMIT && ` Đang hiện ${LIMIT.toLocaleString('vi-VN')} đơn gửi sớm nhất trên ${data.data.nShipping.toLocaleString('vi-VN')} đơn đang giao — dùng tìm kiếm hoặc chọn từng người để xem hết.`}
           </p>
           <OrderTable orders={list} onOpen={setOpen} showShipper={isManager && !who} showSeller />
         </Card>

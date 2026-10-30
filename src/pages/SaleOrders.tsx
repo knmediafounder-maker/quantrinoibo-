@@ -107,6 +107,7 @@ export default function SaleOrders() {
           ]} />}>
           <OrderFilterBar value={filter} onChange={setFilter} count={list.length} />
           {found && <p className="-mt-2 mb-3 text-xs text-muted">Kết quả tìm theo mã trên mọi ngày (không theo tab đang chọn).</p>}
+          {!found && (orders.data?.length ?? 0) >= 1000 && <p className="-mt-2 mb-3 text-xs text-honey-dark">Chỉ hiện 1.000 đơn (giới hạn mỗi lần tải) — chọn từng người, thu hẹp kỳ hoặc tìm theo mã để xem hết. Số liệu ở trên vẫn tính đủ.</p>}
           {orders.loading ? <Spinner /> : <OrderTable orders={list} onOpen={setOpen} showSeller={isManager && !who} showShipper />}
         </Card>
       </>}
