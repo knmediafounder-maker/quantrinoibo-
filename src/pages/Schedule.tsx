@@ -46,20 +46,20 @@ interface WeekData {
 }
 
 /**
- * Lịch làm việc: cả tuần, 3 ca/ngày.
+ * Lịch làm việc: cả tuần, mỗi phòng 1–3 ca/ngày (cài đặt theo phòng).
  * Nhân viên đăng ký ca muốn nghỉ và bấm Gửi trước hạn (Chủ nhật) → leader xếp, chốt; sửa tự do đến 24:00 Chủ nhật,
  * sau đó mọi thay đổi phải ghi chú và hiện trong lịch → xin nghỉ theo ô ngày + ca, leader duyệt và xếp người bù.
  */
 export default function Schedule() {
-  const { profile, people, settings, viewDepts, manageDepts, departments, deptName } = useAuth()
+  const { profile, people, settings, viewDepts, manageDepts, departments, deptName, deptSetting } = useAuth()
   const me = profile!
-  const shifts = settings?.shifts?.length ? settings.shifts : DEFAULT_SHIFTS
   const regTime = settings?.schedule_reg_time ?? '18:00'
   const [params, setParams] = useSearchParams()
   const [week, setWeek] = useState(() => monday(params.get('tuan') || dayjs(todayVN()).add(7, 'day').format('YYYY-MM-DD')))
   const deptOptions = me.role === 'admin' ? departments.map((d) => d.code) : [...new Set([me.department, ...viewDepts].filter(Boolean) as string[])]
   const [dept, setDept] = useState(me.department ?? deptOptions[0] ?? '')
   const canManage = manageDepts.includes(dept)
+  const shifts = (settings?.shifts?.length ? settings.shifts : DEFAULT_SHIFTS).slice(0, deptSetting(dept).shift_count ?? 3)
   const canView = canManage || viewDepts.includes(dept)
   const days = useMemo(() => Array.from({ length: 7 }, (_, i) => dayjs(week).add(i, 'day').format('YYYY-MM-DD')), [week])
   const members = people.filter((p) => p.is_active && p.department === dept && p.role !== 'admin')
@@ -86,7 +86,7 @@ export default function Schedule() {
   return (
     <div className="space-y-6">
       <PageHeader title="Lịch làm việc"
-        subtitle={<>Làm cả tuần, 3 ca/ngày: {shifts.map((s) => `${s.name} ${s.start}–${s.end}`).join(' · ')}</>}
+        subtitle={<>Làm cả tuần, {shifts.length} ca/ngày: {shifts.map((s) => `${s.name} ${s.start}–${s.end}`).join(' · ')}</>}
         actions={<>
           {deptOptions.length > 1 && (
             <select className="input w-40" value={dept} onChange={(e) => setDept(e.target.value)}>
@@ -149,7 +149,7 @@ function Timeline({ locked, lockedAt, t }: { locked: boolean; lockedAt: string |
   )
 }
 
-/** Lưới 7 ngày × 3 ca dùng chung cho đăng ký nghỉ và xin nghỉ */
+/** Lưới 7 ngày × các ca của phòng, dùng chung cho đăng ký nghỉ và xin nghỉ */
 function SlotGrid({ days, shifts, selected, onToggle, disabled, mark, onLabel, offLabel, label, today }: {
   days: string[]; shifts: Shift[]; selected: Set<string>; onToggle: (d: string, s: number) => void
   disabled?: (d: string, s: number) => boolean; mark?: (d: string, s: number) => boolean; onLabel: string; offLabel: string

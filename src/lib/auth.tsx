@@ -109,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unack_remind_hours: settings?.unack_remind_hours ?? 2,
         staff_can_see_ranking: settings?.staff_can_see_ranking ?? true,
         rank_metric: 'revenue',
+        shift_count: 3,
       },
     personName: (id) => (id ? people.find((p) => p.id === id)?.full_name ?? 'Không rõ' : 'Hệ thống'),
   }

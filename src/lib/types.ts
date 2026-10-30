@@ -90,6 +90,8 @@ export interface DeptSettings {
   unack_remind_hours: number
   staff_can_see_ranking: boolean
   rank_metric?: string | null
+  /** Số ca làm việc mỗi ngày của phòng (lấy từ đầu danh sách ca chung) */
+  shift_count?: number
 }
 
 export interface Threshold { id: string; department: string; metric: string; op: 'lt' | 'gt'; value: number; label: string; active: boolean }

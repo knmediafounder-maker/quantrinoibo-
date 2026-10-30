@@ -51,7 +51,7 @@ export default function GeneralSettings() {
         </div>
       </Card>
 
-      <Card title="Ca làm việc" actions={<span>Áp dụng cho lịch làm việc mọi phòng</span>}>
+      <Card title="Ca làm việc" actions={<span>Số ca mỗi phòng chọn ở Cài đặt theo phòng ban</span>}>
         <div className="space-y-3">
           {shifts.map((s, i) => (
             <div key={i} className="grid grid-cols-3 gap-3">
@@ -62,7 +62,7 @@ export default function GeneralSettings() {
           ))}
         </div>
         <div className="mt-3 max-w-xs">
-          <Field label="Hạn gửi đăng ký lịch (Chủ nhật trước tuần làm)" hint="Leader sửa tự do đến 24:00 Chủ nhật; sau đó thay đổi phải ghi chú">
+          <Field label="Hạn gửi đăng ký lịch (Chủ nhật trước tuần làm)" hint="Leader chốt sau giờ này, mở lại để chỉnh được đến 23:59 Chủ nhật; sau đó thay đổi phải ghi chú">
             <input className="input" type="time" value={regTime} onChange={(e) => setRegTime(e.target.value)} />
           </Field>
         </div>
@@ -82,6 +82,11 @@ export default function GeneralSettings() {
           <Field label="Chỉ số xếp hạng" hint="Bảng xếp hạng trong phòng sắp theo chỉ số này">
             <select className="input" value={s.rank_metric ?? ''} onChange={(e) => setS({ ...s, rank_metric: e.target.value })}>
               {(THRESHOLD_METRICS[dept] ?? Object.keys(METRICS)).filter((k) => k !== 'team_shipping').map((k) => <option key={k} value={k}>{METRICS[k].label}</option>)}
+            </select>
+          </Field>
+          <Field label="Số ca làm việc mỗi ngày" hint="Lịch làm việc của phòng chỉ dùng các ca này">
+            <select className="input" value={s.shift_count ?? 3} onChange={(e) => setS({ ...s, shift_count: Number(e.target.value) })}>
+              {shifts.map((_, i) => <option key={i} value={i + 1}>{i + 1} ca: {shifts.slice(0, i + 1).map((x) => x.name).join(', ')}</option>)}
             </select>
           </Field>
           <Field label="Nhắc chưa xác nhận việc sau (giờ)"><input className="input" type="number" min={1} value={s.unack_remind_hours} onChange={(e) => setS({ ...s, unack_remind_hours: Number(e.target.value) })} /></Field>
